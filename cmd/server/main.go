@@ -81,23 +81,55 @@ func main() {
 		}
 	}
 
+	// 根路径健康检查和API示例
+	r.GET("/", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"status":  "ok",
+			"service": "bkp-drive (不靠谱网盘)",
+			"version": "2.0.0",
+			"description": "基于火山引擎TOS的云存储后端服务",
+			"health": gin.H{
+				"database": "ok",
+				"storage":  "ok",
+				"uptime":   "running",
+			},
+			"features": []string{
+				"基础文件操作",
+				"批量操作", 
+				"文件搜索",
+				"文件分享",
+				"存储统计",
+			},
+			"api_examples": gin.H{
+				"upload_file": "curl -X POST http://localhost:8082/api/v1/upload -F \"file=@test.txt\" -F \"folder=documents\"",
+				"list_files": "curl http://localhost:8082/api/v1/files",
+				"download_file": "curl -o downloaded.txt \"http://localhost:8082/api/v1/download/documents/test.txt\"",
+				"delete_file": "curl -X DELETE \"http://localhost:8082/api/v1/files/documents/test.txt\"",
+				"create_folder": "curl -X POST http://localhost:8082/api/v1/folders -H \"Content-Type: application/json\" -d '{\"name\":\"new-folder\"}'",
+				"batch_delete": "curl -X POST http://localhost:8082/api/v1/batch/delete -H \"Content-Type: application/json\" -d '{\"items\":[\"file1.txt\",\"file2.txt\"]}'",
+				"search_files": "curl \"http://localhost:8082/api/v1/search?q=document&limit=10\"",
+				"create_share": "curl -X POST http://localhost:8082/api/v1/share/create -H \"Content-Type: application/json\" -d '{\"fileKey\":\"documents/report.pdf\",\"password\":\"123456\",\"allowDownload\":true}'",
+				"storage_stats": "curl http://localhost:8082/api/v1/stats/storage",
+			},
+			"documentation": gin.H{
+				"api_docs": "查看 API.md 和 API_EXTENDED.md 了解完整API文档",
+				"github": "https://github.com/jneless/bkp-drive",
+			},
+		})
+	})
+
+	// 保持原有的 /health 端点用于简单健康检查
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"status":  "ok",
 			"service": "bkp-drive",
 			"version": "2.0.0",
-			"features": []string{
-				"基础文件操作",
-				"批量操作",
-				"文件搜索",
-				"文件分享",
-				"存储统计",
-			},
 		})
 	})
 
 	port := ":8082"
 	log.Printf("HTTP服务器启动在端口%s", port)
+	log.Printf("根路径访问: http://localhost%s/ (包含API示例)", port)
 	log.Printf("健康检查: http://localhost%s/health", port)
 	log.Printf("扩展功能API:")
 	log.Printf("  批量操作:")
