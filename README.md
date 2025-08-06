@@ -91,6 +91,8 @@ go run cmd/server/main.go
 Apache-2.0
 
 ## Thanks
-> 感谢 Jinpu Hu 对本项目的前端架构建议
-> 感谢 Weibin Ma 对 ai 相关技术的讲解
-> 感谢 claude code 和 instcopilot 提供 ai 相关能力
+* 感谢 Jinpu Hu 对本项目的前端架构建议
+
+* 感谢 Weibin Ma 对 ai 相关技术的讲解
+
+* 感谢 claude code 和 instcopilot 提供 ai 相关能力
