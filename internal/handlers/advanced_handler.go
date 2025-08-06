@@ -22,6 +22,16 @@ func NewAdvancedHandler(tosClient *tos.TOSClient) *AdvancedHandler {
 }
 
 // BatchDelete 批量删除文件
+// @Summary      批量删除文件
+// @Description  一次性删除多个文件或文件夹
+// @Tags         批量操作
+// @Accept       json
+// @Produce      json
+// @Param        request   body      models.BatchOperationRequest  true  "批量删除请求"
+// @Success      200       {object}  models.BatchOperationResponse
+// @Failure      400       {object}  models.ErrorResponse
+// @Failure      500       {object}  models.ErrorResponse
+// @Router       /batch/delete [post]
 func (h *AdvancedHandler) BatchDelete(c *gin.Context) {
 	var req models.BatchOperationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -184,6 +194,18 @@ func (h *AdvancedHandler) RenameFile(c *gin.Context) {
 }
 
 // SearchFiles 搜索文件
+// @Summary      搜索文件
+// @Description  根据查询条件搜索文件，支持文件名、文件类型等多种筛选条件
+// @Tags         搜索功能
+// @Accept       json
+// @Produce      json
+// @Param        q          query     string  false  "搜索关键词"
+// @Param        folder     query     string  false  "搜索的文件夹"
+// @Param        fileType   query     string  false  "文件类型过滤"
+// @Param        limit      query     int     false  "返回结果数量限制"
+// @Success      200        {object}  models.SearchResponse
+// @Failure      500        {object}  models.ErrorResponse
+// @Router       /search [get]
 func (h *AdvancedHandler) SearchFiles(c *gin.Context) {
 	// 从URL参数构建搜索请求
 	req := &models.SearchRequest{

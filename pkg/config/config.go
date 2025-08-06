@@ -5,11 +5,11 @@ import (
 )
 
 type Config struct {
-	TOSEndpoint   string
-	TOSRegion     string
-	AccessKey     string
-	SecretKey     string
-	BucketName    string
+	TOSEndpoint string
+	TOSRegion   string
+	AccessKey   string
+	SecretKey   string
+	BucketName  string
 }
 
 func LoadConfig() *Config {

@@ -5,11 +5,34 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	ginSwagger "github.com/swaggo/gin-swagger"
+	swaggerFiles "github.com/swaggo/files"
 
+	_ "bkp-drive/docs"  // 导入生成的swagger文档
 	"bkp-drive/internal/handlers"
 	"bkp-drive/pkg/config"
 	"bkp-drive/pkg/tos"
 )
+
+// @title           bkp-drive API
+// @version         2.0.0
+// @description     基于火山引擎TOS的云存储后端服务 - 不靠谱网盘API文档
+// @termsOfService  http://swagger.io/terms/
+
+// @contact.name   API Support
+// @contact.url    http://github.com/jneless/bkp-drive
+// @contact.email  support@bkp-drive.com
+
+// @license.name  MIT
+// @license.url   http://www.apache.org/licenses/LICENSE-2.0.html
+
+// @host      localhost:8082
+// @BasePath  /api/v1
+
+// @securityDefinitions.basic  BasicAuth
+
+// @externalDocs.description  OpenAPI
+// @externalDocs.url          https://swagger.io/resources/open-api/
 
 func main() {
 	log.Println("启动 bkp-drive HTTP 服务...")
@@ -81,6 +104,9 @@ func main() {
 		}
 	}
 
+	// Swagger 文档路由
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+
 	// 根路径健康检查和API示例
 	r.GET("/", func(c *gin.Context) {
 		c.JSON(200, gin.H{
@@ -131,6 +157,7 @@ func main() {
 	log.Printf("HTTP服务器启动在端口%s", port)
 	log.Printf("根路径访问: http://localhost%s/ (包含API示例)", port)
 	log.Printf("健康检查: http://localhost%s/health", port)
+	log.Printf("API文档: http://localhost%s/swagger/index.html", port)
 	log.Printf("扩展功能API:")
 	log.Printf("  批量操作:")
 	log.Printf("    POST   /api/v1/batch/delete    - 批量删除")

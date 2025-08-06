@@ -3,6 +3,7 @@ package tos
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
 
@@ -72,4 +73,22 @@ func (tc *TOSClient) EnsureBucketExists() error {
 	}
 	
 	return nil
+}
+
+// GetBucketName 获取bucket名称
+func (tc *TOSClient) GetBucketName() string {
+	return tc.config.BucketName
+}
+
+// GetEndpoint 获取TOS endpoint（去掉https://前缀）
+func (tc *TOSClient) GetEndpoint() string {
+	endpoint := tc.config.TOSEndpoint
+	// 移除 https:// 前缀
+	if strings.HasPrefix(endpoint, "https://") {
+		endpoint = strings.TrimPrefix(endpoint, "https://")
+	}
+	if strings.HasPrefix(endpoint, "http://") {
+		endpoint = strings.TrimPrefix(endpoint, "http://")
+	}
+	return endpoint
 }

@@ -172,6 +172,25 @@ func (tc *TOSClient) GetObject(key string) (io.ReadCloser, int64, string, error)
 	return output.Content, output.ContentLength, output.ContentType, nil
 }
 
+// GetProcessedObject 获取TOS处理后的对象（如缩略图、视频截图等）
+func (tc *TOSClient) GetProcessedObject(key string, process string) (io.ReadCloser, int64, string, error) {
+	ctx := context.Background()
+	
+	// 使用TOS SDK的GetObject方法，并通过Process参数指定处理操作
+	input := &tos.GetObjectV2Input{
+		Bucket:  tc.config.BucketName,
+		Key:     key,
+		Process: process, // TOS处理参数
+	}
+	
+	output, err := tc.client.GetObjectV2(ctx, input)
+	if err != nil {
+		return nil, 0, "", fmt.Errorf("获取处理后对象失败: %w", err)
+	}
+	
+	return output.Content, output.ContentLength, output.ContentType, nil
+}
+
 // DeleteObject 删除 TOS 中的对象
 func (tc *TOSClient) DeleteObject(key string) error {
 	ctx := context.Background()
