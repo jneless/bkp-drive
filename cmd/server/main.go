@@ -107,8 +107,8 @@ func main() {
 	// Swagger 文档路由
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
-	// 根路径健康检查和API示例
-	r.GET("/", func(c *gin.Context) {
+	// API健康检查和示例 (移动到/api路径)
+	r.GET("/api", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"status":  "ok",
 			"service": "bkp-drive (不靠谱网盘)",
@@ -155,7 +155,9 @@ func main() {
 
 	port := ":18666"
 	log.Printf("HTTP服务器启动在端口%s", port)
-	log.Printf("根路径访问: http://localhost%s/ (包含API示例)", port)
+	log.Printf("主页访问: http://localhost%s/ (Apple风格首页)", port)
+	log.Printf("网盘功能: http://localhost%s/pan.html (文件管理)", port)
+	log.Printf("API示例: http://localhost%s/api (包含API示例)", port)
 	log.Printf("健康检查: http://localhost%s/health", port)
 	log.Printf("API文档: http://localhost%s/swagger/index.html", port)
 	log.Printf("扩展功能API:")
