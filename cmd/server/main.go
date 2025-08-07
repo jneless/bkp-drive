@@ -26,7 +26,7 @@ import (
 // @license.name  MIT
 // @license.url   http://www.apache.org/licenses/LICENSE-2.0.html
 
-// @host      localhost:8082
+// @host      localhost:18666
 // @BasePath  /api/v1
 
 // @securityDefinitions.basic  BasicAuth
@@ -127,15 +127,15 @@ func main() {
 				"存储统计",
 			},
 			"api_examples": gin.H{
-				"upload_file": "curl -X POST http://localhost:8082/api/v1/upload -F \"file=@test.txt\" -F \"folder=documents\"",
-				"list_files": "curl http://localhost:8082/api/v1/files",
-				"download_file": "curl -o downloaded.txt \"http://localhost:8082/api/v1/download/documents/test.txt\"",
-				"delete_file": "curl -X DELETE \"http://localhost:8082/api/v1/files/documents/test.txt\"",
-				"create_folder": "curl -X POST http://localhost:8082/api/v1/folders -H \"Content-Type: application/json\" -d '{\"name\":\"new-folder\"}'",
-				"batch_delete": "curl -X POST http://localhost:8082/api/v1/batch/delete -H \"Content-Type: application/json\" -d '{\"items\":[\"file1.txt\",\"file2.txt\"]}'",
-				"search_files": "curl \"http://localhost:8082/api/v1/search?q=document&limit=10\"",
-				"create_share": "curl -X POST http://localhost:8082/api/v1/share/create -H \"Content-Type: application/json\" -d '{\"fileKey\":\"documents/report.pdf\",\"password\":\"123456\",\"allowDownload\":true}'",
-				"storage_stats": "curl http://localhost:8082/api/v1/stats/storage",
+				"upload_file": "curl -X POST http://localhost:18666/api/v1/upload -F \"file=@test.txt\" -F \"folder=documents\"",
+				"list_files": "curl http://localhost:18666/api/v1/files",
+				"download_file": "curl -o downloaded.txt \"http://localhost:18666/api/v1/download/documents/test.txt\"",
+				"delete_file": "curl -X DELETE \"http://localhost:18666/api/v1/files/documents/test.txt\"",
+				"create_folder": "curl -X POST http://localhost:18666/api/v1/folders -H \"Content-Type: application/json\" -d '{\"name\":\"new-folder\"}'",
+				"batch_delete": "curl -X POST http://localhost:18666/api/v1/batch/delete -H \"Content-Type: application/json\" -d '{\"items\":[\"file1.txt\",\"file2.txt\"]}'",
+				"search_files": "curl \"http://localhost:18666/api/v1/search?q=document&limit=10\"",
+				"create_share": "curl -X POST http://localhost:18666/api/v1/share/create -H \"Content-Type: application/json\" -d '{\"fileKey\":\"documents/report.pdf\",\"password\":\"123456\",\"allowDownload\":true}'",
+				"storage_stats": "curl http://localhost:18666/api/v1/stats/storage",
 			},
 			"documentation": gin.H{
 				"api_docs": "查看 API.md 和 API_EXTENDED.md 了解完整API文档",
@@ -153,7 +153,7 @@ func main() {
 		})
 	})
 
-	port := ":8082"
+	port := ":18666"
 	log.Printf("HTTP服务器启动在端口%s", port)
 	log.Printf("根路径访问: http://localhost%s/ (包含API示例)", port)
 	log.Printf("健康检查: http://localhost%s/health", port)

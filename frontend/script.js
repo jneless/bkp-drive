@@ -1,5 +1,5 @@
 // API配置
-const API_BASE_URL = 'http://localhost:8082/api/v1';
+const API_BASE_URL = 'http://localhost:18666/api/v1';
 
 // 全局状态
 let currentPath = '';
