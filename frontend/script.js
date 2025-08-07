@@ -1258,6 +1258,7 @@ function cancelUpload() {
 
 // 图片预览相关功能
 let currentImagePath = '';
+let currentImageBlobUrl = null; // 用于管理当前预览图片的blob URL
 
 function openImagePreview(imageFilePath, filename) {
     currentImagePath = imageFilePath;
@@ -1301,30 +1302,65 @@ function showImage() {
 function loadPreviewImage(imagePath) {
     if (!previewImage) return;
     
-    // 使用原图URL（不使用缩略图，以获得更好的预览质量）
-    const imageUrl = `${API_BASE_URL}/download/${imagePath}`;
+    // 清理之前的blob URL
+    if (currentImageBlobUrl) {
+        URL.revokeObjectURL(currentImageBlobUrl);
+        currentImageBlobUrl = null;
+    }
     
-    // 创建新的Image对象来预加载
-    const img = new Image();
-    
-    img.onload = function() {
-        previewImage.src = this.src;
-        showImage();
-    };
-    
-    img.onerror = function() {
-        console.error('图片加载失败:', imageUrl);
-        showImageError();
-    };
-    
-    img.src = imageUrl;
     showImageLoading();
+    
+    // 使用认证方式加载原图
+    loadAuthenticatedOriginalImage(imagePath)
+        .then(blobUrl => {
+            if (blobUrl) {
+                currentImageBlobUrl = blobUrl; // 保存blob URL用于后续清理
+                previewImage.src = blobUrl;
+                showImage();
+            } else {
+                console.error('图片加载失败: blob URL为空');
+                showImageError();
+            }
+        })
+        .catch(error => {
+            console.error('图片加载失败:', error);
+            showImageError();
+        });
+}
+
+// 加载认证的原图（不使用缩略图处理）
+async function loadAuthenticatedOriginalImage(fileKey) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/download/${fileKey}`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${authToken}`
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const blob = await response.blob();
+        return URL.createObjectURL(blob);
+    } catch (error) {
+        console.warn('加载认证原图失败:', error);
+        return null;
+    }
 }
 
 function closeImagePreview() {
     if (imagePreviewModal) {
         imagePreviewModal.style.display = 'none';
     }
+    
+    // 清理blob URL以释放内存
+    if (currentImageBlobUrl) {
+        URL.revokeObjectURL(currentImageBlobUrl);
+        currentImageBlobUrl = null;
+    }
+    
     currentImagePath = '';
     if (previewImage) {
         previewImage.src = '';

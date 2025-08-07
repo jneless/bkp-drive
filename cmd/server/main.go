@@ -78,6 +78,7 @@ func main() {
 	r.StaticFile("/register.html", "./frontend/register.html")
 	r.StaticFile("/test.html", "./frontend/test.html")
 	r.StaticFile("/thumbnail-test.html", "./frontend/thumbnail-test.html")
+	r.StaticFile("/preview-test.html", "./frontend/preview-test.html")
 
 	// 创建处理器
 	fileHandler := handlers.NewFileHandler(tosClient)

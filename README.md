@@ -1,12 +1,12 @@
 # bkp-drive (不靠谱网盘)
 
-> 基于火山引擎TOS的云盘 🚀 从不靠谱到靠谱的路上
+> 基于火山引擎TOS的个人网盘 🚀 从不靠谱到靠谱的路上
 
 ![](src/img/logo_v1.gif)
 
 ## 📋 项目介绍
 
-**bkp-drive** 是一个基于火山引擎对象存储(TOS)服务构建的网盘服务。项目基于 TOS Go SDK 开发，支持用户认证、文件管理、图片预览等功能。
+**bkp-drive** 是一个基于火山引擎对象存储(TOS)服务构建的网盘服务。项目基于 TOS Go SDK 开发.
 
 ## ✨ 功能特性
 
@@ -47,8 +47,6 @@ export MYSQL_HOST="localhost"
 export MYSQL_PORT="3306"
 export MYSQL_DATABASE="bkp_drive"
 
-# JWT 配置
-export JWT_SECRET="your-jwt-secret"
 ```
 
 ### 数据库初始化
@@ -80,7 +78,7 @@ go run cmd/server/main.go
 ## 📖 API 文档
 
 ### Swagger 文档
-访问 http://localhost:8082/swagger/index.html 查看完整的API文档
+访问 http://localhost:18666/swagger/index.html 查看完整的API文档
 
 ### 核心模块说明
 
@@ -107,24 +105,6 @@ go run cmd/server/main.go
 #### 📚 API文档 (`docs/`)
 - Swagger自动生成的API文档
 - 支持在线测试和接口说明
-
-## 📢 功能状态
-
-✅ **已实现功能**
-- 用户注册和登录系统
-- JWT令牌认证
-- 文件上传和下载
-- 文件和文件夹删除
-- 文件夹创建和导航
-- 图片在线预览
-- 批量文件操作
-- Apple风格界面设计
-
-🚧 **开发中功能**
-- 图片和视频缩略图显示（TOS处理功能）
-- 多用户数据隔离
-- 文件分享功能
-- 搜索和过滤功能
 
 ## 🔧 技术栈
 
