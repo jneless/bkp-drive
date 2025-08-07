@@ -470,6 +470,62 @@ function setupFileItemListeners() {
             deleteFile(filePath, isFolder);
         });
     });
+    
+    // 异步加载缩略图
+    loadThumbnails();
+}
+
+// 异步加载所有缩略图
+async function loadThumbnails() {
+    // 如果用户未登录，跳过缩略图加载
+    if (!authToken) {
+        return;
+    }
+    
+    // 加载图片缩略图
+    const imageContainers = document.querySelectorAll('.file-image-container');
+    imageContainers.forEach(async container => {
+        const fileKey = container.dataset.fileKey;
+        const size = parseInt(container.dataset.size);
+        const imgElement = container.querySelector('.file-image-preview');
+        const iconElement = container.querySelector('.file-icon');
+        
+        try {
+            const blobUrl = await loadAuthenticatedImage(fileKey, size);
+            if (blobUrl) {
+                imgElement.src = blobUrl;
+                imgElement.style.display = 'block';
+                iconElement.style.display = 'none';
+                iconElement.classList.remove('loading-thumbnail');
+            }
+        } catch (error) {
+            console.warn(`加载图片缩略图失败: ${fileKey}`, error);
+            iconElement.classList.remove('loading-thumbnail');
+        }
+    });
+    
+    // 加载视频缩略图
+    const videoContainers = document.querySelectorAll('.video-thumbnail-container');
+    videoContainers.forEach(async container => {
+        const fileKey = container.dataset.fileKey;
+        const size = parseInt(container.dataset.size);
+        const imgElement = container.querySelector('.file-video-thumbnail');
+        const fallbackElement = container.querySelector('.video-fallback-icon');
+        const playOverlay = container.querySelector('.video-play-overlay');
+        
+        try {
+            const blobUrl = await loadAuthenticatedVideoThumbnail(fileKey, size);
+            if (blobUrl) {
+                imgElement.src = blobUrl;
+                imgElement.style.display = 'block';
+                playOverlay.style.display = 'block';
+                fallbackElement.style.display = 'none';
+            }
+        } catch (error) {
+            console.warn(`加载视频缩略图失败: ${fileKey}`, error);
+            fallbackElement.style.display = 'block';
+        }
+    });
 }
 
 // 导航到文件夹
@@ -866,20 +922,21 @@ function getFileIcon(file, isFolder) {
     // 检查是否为图片文件
     const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'];
     if (imageExts.includes(ext)) {
-        const previewUrl = getImagePreviewUrl(file.key, currentViewMode === 'list' ? 32 : 128);
-        return `<img src="${previewUrl}" alt="${filename}" class="file-image-preview" onerror="this.style.display='none';this.nextSibling.style.display='block';">
-                <div class="file-icon" style="display:none;">${getFileTypeIcon(ext)}</div>`;
+        const size = currentViewMode === 'list' ? 32 : 128;
+        return `<div class="file-image-container" data-file-key="${file.key}" data-size="${size}">
+                    <div class="file-icon loading-thumbnail">${getFileTypeIcon(ext)}</div>
+                    <img class="file-image-preview" style="display:none;" alt="${filename}">
+                </div>`;
     }
     
     // 检查是否为视频文件
     const videoExts = ['mp4', 'avi', 'mov', 'wmv', 'flv', 'webm', 'mkv', '3gp', 'f4v', 'rmvb'];
     if (videoExts.includes(ext)) {
-        const thumbnailUrl = getVideoThumbnailUrl(file.key, currentViewMode === 'list' ? 32 : 128);
-        // 为视频缩略图添加更好的降级方案
-        return `<div class="video-thumbnail-container">
-                    <img src="${thumbnailUrl}" alt="${filename}" class="file-video-thumbnail" onerror="this.style.display='none';this.parentElement.querySelector('.video-fallback-icon').style.display='block';">
-                    <div class="video-fallback-icon" style="display:none;">${getFileTypeIcon(ext)}</div>
-                    <div class="video-play-overlay">▶</div>
+        const size = currentViewMode === 'list' ? 32 : 128;
+        return `<div class="video-thumbnail-container" data-file-key="${file.key}" data-size="${size}">
+                    <div class="video-fallback-icon">${getFileTypeIcon(ext)}</div>
+                    <img class="file-video-thumbnail" style="display:none;" alt="${filename}">
+                    <div class="video-play-overlay" style="display:none;">▶</div>
                 </div>`;
     }
     
@@ -903,6 +960,50 @@ function getImagePreviewUrl(fileKey, size = 128) {
     // 参数格式：?x-tos-process=image/resize,w_128
     const baseUrl = `${API_BASE_URL}/download/${fileKey}`;
     return `${baseUrl}?x-tos-process=image/resize,w_${size}`;
+}
+
+// 异步加载认证图片并返回blob URL
+async function loadAuthenticatedImage(fileKey, size = 128) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/download/${fileKey}?x-tos-process=image/resize,w_${size}`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${authToken}`
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        
+        const blob = await response.blob();
+        return URL.createObjectURL(blob);
+    } catch (error) {
+        console.warn('加载认证图片失败:', error);
+        return null;
+    }
+}
+
+// 异步加载认证视频缩略图并返回blob URL
+async function loadAuthenticatedVideoThumbnail(fileKey, size = 128) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/download/${fileKey}?x-tos-process=video/snapshot,t_0,w_${size},h_${size},f_jpg`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${authToken}`
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        
+        const blob = await response.blob();
+        return URL.createObjectURL(blob);
+    } catch (error) {
+        console.warn('加载认证视频缩略图失败:', error);
+        return null;
+    }
 }
 
 function getVideoThumbnailUrl(fileKey, size = 128) {

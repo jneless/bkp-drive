@@ -390,11 +390,23 @@ header {
 }
 
 /* 图片预览样式 */
+.file-image-container {
+    position: relative;
+    width: 32px;
+    height: 32px;
+    display: inline-block;
+}
+
 .file-image-preview {
     width: 32px;
     height: 32px;
     border-radius: 4px;
     object-fit: cover;
+}
+
+.file-list.grid-view .file-image-container {
+    width: 128px;
+    height: 128px;
 }
 
 .file-list.grid-view .file-image-preview {
@@ -403,6 +415,18 @@ header {
     border-radius: 8px;
     object-fit: cover;
     margin-bottom: 8px;
+}
+
+/* 加载状态样式 */
+.loading-thumbnail {
+    opacity: 0.6;
+    animation: pulse 1.5s infinite ease-in-out;
+}
+
+@keyframes pulse {
+    0% { opacity: 0.6; }
+    50% { opacity: 1; }
+    100% { opacity: 0.6; }
 }
 
 /* 视频缩略图样式 */
