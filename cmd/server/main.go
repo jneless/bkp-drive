@@ -10,7 +10,10 @@ import (
 
 	_ "bkp-drive/docs"  // 导入生成的swagger文档
 	"bkp-drive/internal/handlers"
+	"bkp-drive/internal/middleware"
+	"bkp-drive/internal/services"
 	"bkp-drive/pkg/config"
+	"bkp-drive/pkg/database"
 	"bkp-drive/pkg/tos"
 )
 
@@ -39,6 +42,15 @@ func main() {
 
 	cfg := config.LoadConfig()
 
+	// 初始化数据库连接
+	if err := database.InitDB(cfg); err != nil {
+		log.Fatalf("数据库连接失败: %v", err)
+	}
+	defer database.CloseDB()
+
+	// 初始化JWT
+	middleware.InitJWT(cfg.JWTSecret)
+
 	tosClient, err := tos.NewTOSClient(cfg)
 	if err != nil {
 		log.Fatalf("创建TOS客户端失败: %v", err)
@@ -58,49 +70,75 @@ func main() {
 		AllowCredentials: true,
 	}))
 
+	// 静态文件服务
+	r.Static("/static", "./frontend")
+	r.StaticFile("/", "./frontend/index.html")
+	r.StaticFile("/pan.html", "./frontend/pan.html")
+	r.StaticFile("/login.html", "./frontend/login.html")
+	r.StaticFile("/register.html", "./frontend/register.html")
+	r.StaticFile("/test.html", "./frontend/test.html")
+
 	// 创建处理器
 	fileHandler := handlers.NewFileHandler(tosClient)
 	advancedHandler := handlers.NewAdvancedHandler(tosClient)
 	shareHandler := handlers.NewShareHandler(tosClient)
+	
+	// 用户服务和认证处理器
+	userService := services.NewUserService(cfg.JWTSecret)
+	authHandler := handlers.NewAuthHandler(userService)
 
 	api := r.Group("/api/v1")
 	{
-		// 基础文件操作
-		api.POST("/upload", fileHandler.UploadFile)
-		api.GET("/files", fileHandler.ListFiles)
-		api.GET("/download/*key", fileHandler.DownloadFile)
-		api.DELETE("/files/*key", fileHandler.DeleteFile)
-		api.POST("/folders", fileHandler.CreateFolder)
-
-		// 高级文件操作
-		api.PUT("/files/move", advancedHandler.MoveFile)
-		api.PUT("/files/copy", advancedHandler.CopyFile)
-		api.PUT("/files/rename", advancedHandler.RenameFile)
-
-		// 批量操作
-		batch := api.Group("/batch")
+		// 认证相关API (不需要登录)
+		auth := api.Group("/auth")
 		{
-			batch.POST("/delete", advancedHandler.BatchDelete)
-			batch.POST("/move", advancedHandler.BatchMove)
-			batch.POST("/copy", advancedHandler.BatchCopy)
+			auth.POST("/register", authHandler.Register)
+			auth.POST("/login", authHandler.Login)
+			auth.POST("/logout", authHandler.Logout)
+			auth.GET("/profile", middleware.AuthMiddleware(), authHandler.GetProfile)
 		}
 
-		// 搜索和过滤
-		api.GET("/search", advancedHandler.SearchFiles)
-		api.GET("/files/recent", advancedHandler.GetRecentFiles)
-		api.GET("/files/filter", advancedHandler.FilterFiles)
-
-		// 存储统计
-		api.GET("/stats/storage", advancedHandler.GetStorageStats)
-
-		// 分享功能
-		share := api.Group("/share")
+		// 文件操作API (需要登录)
+		protected := api.Group("/")
+		protected.Use(middleware.AuthMiddleware())
 		{
-			share.POST("/create", shareHandler.CreateShare)
-			share.GET("/:shareId", shareHandler.AccessShare)
-			share.GET("/:shareId/download", shareHandler.DownloadSharedFile)
-			share.DELETE("/:shareId", shareHandler.DeleteShare)
-			share.GET("/", shareHandler.ListShares)
+			// 基础文件操作
+			protected.POST("/upload", fileHandler.UploadFile)
+			protected.GET("/files", fileHandler.ListFiles)
+			protected.GET("/download/*key", fileHandler.DownloadFile)
+			protected.DELETE("/files/*key", fileHandler.DeleteFile)
+			protected.POST("/folders", fileHandler.CreateFolder)
+
+			// 高级文件操作
+			protected.PUT("/files/move", advancedHandler.MoveFile)
+			protected.PUT("/files/copy", advancedHandler.CopyFile)
+			protected.PUT("/files/rename", advancedHandler.RenameFile)
+
+			// 批量操作
+			batch := protected.Group("/batch")
+			{
+				batch.POST("/delete", advancedHandler.BatchDelete)
+				batch.POST("/move", advancedHandler.BatchMove)
+				batch.POST("/copy", advancedHandler.BatchCopy)
+			}
+
+			// 搜索和过滤
+			protected.GET("/search", advancedHandler.SearchFiles)
+			protected.GET("/files/recent", advancedHandler.GetRecentFiles)
+			protected.GET("/files/filter", advancedHandler.FilterFiles)
+
+			// 存储统计
+			protected.GET("/stats/storage", advancedHandler.GetStorageStats)
+
+			// 分享功能
+			share := protected.Group("/share")
+			{
+				share.POST("/create", shareHandler.CreateShare)
+				share.GET("/:shareId", shareHandler.AccessShare)
+				share.GET("/:shareId/download", shareHandler.DownloadSharedFile)
+				share.DELETE("/:shareId", shareHandler.DeleteShare)
+				share.GET("/", shareHandler.ListShares)
+			}
 		}
 	}
 
@@ -120,6 +158,7 @@ func main() {
 				"uptime":   "running",
 			},
 			"features": []string{
+				"用户认证",
 				"基础文件操作",
 				"批量操作", 
 				"文件搜索",
@@ -127,15 +166,17 @@ func main() {
 				"存储统计",
 			},
 			"api_examples": gin.H{
-				"upload_file": "curl -X POST http://localhost:18666/api/v1/upload -F \"file=@test.txt\" -F \"folder=documents\"",
-				"list_files": "curl http://localhost:18666/api/v1/files",
-				"download_file": "curl -o downloaded.txt \"http://localhost:18666/api/v1/download/documents/test.txt\"",
-				"delete_file": "curl -X DELETE \"http://localhost:18666/api/v1/files/documents/test.txt\"",
-				"create_folder": "curl -X POST http://localhost:18666/api/v1/folders -H \"Content-Type: application/json\" -d '{\"name\":\"new-folder\"}'",
-				"batch_delete": "curl -X POST http://localhost:18666/api/v1/batch/delete -H \"Content-Type: application/json\" -d '{\"items\":[\"file1.txt\",\"file2.txt\"]}'",
-				"search_files": "curl \"http://localhost:18666/api/v1/search?q=document&limit=10\"",
-				"create_share": "curl -X POST http://localhost:18666/api/v1/share/create -H \"Content-Type: application/json\" -d '{\"fileKey\":\"documents/report.pdf\",\"password\":\"123456\",\"allowDownload\":true}'",
-				"storage_stats": "curl http://localhost:18666/api/v1/stats/storage",
+				"register": "curl -X POST http://localhost:18666/api/v1/auth/register -H \"Content-Type: application/json\" -d '{\"username\":\"test\",\"password\":\"password\"}'",
+				"login": "curl -X POST http://localhost:18666/api/v1/auth/login -H \"Content-Type: application/json\" -d '{\"username\":\"test\",\"password\":\"password\"}'",
+				"upload_file": "curl -X POST http://localhost:18666/api/v1/upload -H \"Authorization: Bearer YOUR_TOKEN\" -F \"file=@test.txt\" -F \"folder=documents\"",
+				"list_files": "curl -H \"Authorization: Bearer YOUR_TOKEN\" http://localhost:18666/api/v1/files",
+				"download_file": "curl -H \"Authorization: Bearer YOUR_TOKEN\" -o downloaded.txt \"http://localhost:18666/api/v1/download/documents/test.txt\"",
+				"delete_file": "curl -X DELETE -H \"Authorization: Bearer YOUR_TOKEN\" \"http://localhost:18666/api/v1/files/documents/test.txt\"",
+				"create_folder": "curl -X POST -H \"Authorization: Bearer YOUR_TOKEN\" http://localhost:18666/api/v1/folders -H \"Content-Type: application/json\" -d '{\"name\":\"new-folder\"}'",
+				"batch_delete": "curl -X POST -H \"Authorization: Bearer YOUR_TOKEN\" http://localhost:18666/api/v1/batch/delete -H \"Content-Type: application/json\" -d '{\"items\":[\"file1.txt\",\"file2.txt\"]}'",
+				"search_files": "curl -H \"Authorization: Bearer YOUR_TOKEN\" \"http://localhost:18666/api/v1/search?q=document&limit=10\"",
+				"create_share": "curl -X POST -H \"Authorization: Bearer YOUR_TOKEN\" http://localhost:18666/api/v1/share/create -H \"Content-Type: application/json\" -d '{\"fileKey\":\"documents/report.pdf\",\"password\":\"123456\",\"allowDownload\":true}'",
+				"storage_stats": "curl -H \"Authorization: Bearer YOUR_TOKEN\" http://localhost:18666/api/v1/stats/storage",
 			},
 			"documentation": gin.H{
 				"api_docs": "查看 API.md 和 API_EXTENDED.md 了解完整API文档",
@@ -157,10 +198,17 @@ func main() {
 	log.Printf("HTTP服务器启动在端口%s", port)
 	log.Printf("主页访问: http://localhost%s/ (Apple风格首页)", port)
 	log.Printf("网盘功能: http://localhost%s/pan.html (文件管理)", port)
+	log.Printf("用户登录: http://localhost%s/login.html (用户登录)", port)
+	log.Printf("用户注册: http://localhost%s/register.html (用户注册)", port)
 	log.Printf("API示例: http://localhost%s/api (包含API示例)", port)
 	log.Printf("健康检查: http://localhost%s/health", port)
 	log.Printf("API文档: http://localhost%s/swagger/index.html", port)
-	log.Printf("扩展功能API:")
+	log.Printf("认证API:")
+	log.Printf("  POST   /api/v1/auth/register     - 用户注册")
+	log.Printf("  POST   /api/v1/auth/login        - 用户登录")
+	log.Printf("  POST   /api/v1/auth/logout       - 用户登出")
+	log.Printf("  GET    /api/v1/auth/profile      - 获取用户信息")
+	log.Printf("扩展功能API (需要认证):")
 	log.Printf("  批量操作:")
 	log.Printf("    POST   /api/v1/batch/delete    - 批量删除")
 	log.Printf("    POST   /api/v1/batch/move      - 批量移动")

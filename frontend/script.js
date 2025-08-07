@@ -1,6 +1,10 @@
 // API配置
 const API_BASE_URL = 'http://localhost:18666/api/v1';
 
+// 认证相关
+let authToken = null;
+let currentUser = null;
+
 // 全局状态
 let currentPath = '';
 let selectedFiles = new Set();
@@ -41,11 +45,163 @@ const imageError = document.getElementById('image-error');
 const closeImageModal = document.getElementById('close-image-modal');
 const downloadImageBtn = document.getElementById('download-image');
 const retryImageBtn = document.getElementById('retry-image');
+const userInfo = document.getElementById('user-info');
+const usernameDisplay = document.getElementById('username-display');
+const logoutBtn = document.getElementById('logout-btn');
+
+// =============== 认证相关函数 ===============
+
+// 检查登录状态
+function checkAuth() {
+    authToken = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
+    const userInfoStr = localStorage.getItem('user_info') || sessionStorage.getItem('user_info');
+    const expiry = localStorage.getItem('auth_expiry');
+    
+    if (authToken && userInfoStr) {
+        // 检查是否过期
+        if (expiry && Date.now() > parseInt(expiry)) {
+            // 已过期，清除数据
+            clearAuth();
+            redirectToLogin();
+            return false;
+        }
+        
+        try {
+            currentUser = JSON.parse(userInfoStr);
+            showUserInfo();
+            return true;
+        } catch (e) {
+            console.error('解析用户信息失败:', e);
+            clearAuth();
+            redirectToLogin();
+            return false;
+        }
+    } else {
+        redirectToLogin();
+        return false;
+    }
+}
+
+// 清除认证信息
+function clearAuth() {
+    authToken = null;
+    currentUser = null;
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('user_info');
+    localStorage.removeItem('auth_expiry');
+    sessionStorage.removeItem('auth_token');
+    sessionStorage.removeItem('user_info');
+}
+
+// 跳转到登录页面
+function redirectToLogin() {
+    // 显示未登录的界面状态
+    showLoginPrompt();
+    return false;
+}
+
+// 显示登录提示界面
+function showLoginPrompt() {
+    const fileListEl = document.getElementById('file-list');
+    if (fileListEl) {
+        fileListEl.innerHTML = `
+            <div style="text-align: center; padding: 60px 20px; color: #666;">
+                <div style="font-size: 48px; margin-bottom: 20px;">🔒</div>
+                <h2 style="margin-bottom: 10px; color: #333;">需要登录</h2>
+                <p style="margin-bottom: 30px;">请先登录您的账号以访问网盘功能</p>
+                <div style="gap: 15px; display: flex; justify-content: center; flex-wrap: wrap;">
+                    <a href="login.html" style="display: inline-block; padding: 12px 24px; background: #007AFF; color: white; text-decoration: none; border-radius: 8px; font-weight: 500;">立即登录</a>
+                    <a href="register.html" style="display: inline-block; padding: 12px 24px; background: #f8f9fa; color: #333; text-decoration: none; border-radius: 8px; font-weight: 500; border: 1px solid #e9ecef;">注册新账号</a>
+                </div>
+            </div>
+        `;
+    }
+    
+    // 隐藏用户信息
+    if (userInfo) {
+        userInfo.style.display = 'none';
+    }
+}
+
+// 显示用户信息
+function showUserInfo() {
+    if (currentUser && usernameDisplay) {
+        usernameDisplay.textContent = currentUser.username;
+        userInfo.style.display = 'flex';
+    }
+}
+
+// 登出功能
+function logout() {
+    clearAuth();
+    showAlert('已登出', 'success');
+    setTimeout(() => {
+        window.location.href = 'login.html';
+    }, 1000);
+}
+
+// 获取认证头
+function getAuthHeaders() {
+    if (!authToken) {
+        throw new Error('未登录');
+    }
+    return {
+        'Authorization': `Bearer ${authToken}`,
+        'Content-Type': 'application/json'
+    };
+}
+
+// 显示提示消息
+function showAlert(message, type) {
+    // 创建提示元素
+    const alert = document.createElement('div');
+    alert.className = `auth-alert alert-${type}`;
+    alert.textContent = message;
+    alert.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 12px 20px;
+        border-radius: 5px;
+        color: white;
+        font-weight: 500;
+        z-index: 10000;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        ${type === 'success' ? 'background-color: #28a745;' : 'background-color: #dc3545;'}
+    `;
+    
+    document.body.appendChild(alert);
+    
+    // 显示动画
+    setTimeout(() => alert.style.opacity = '1', 100);
+    
+    // 自动移除
+    setTimeout(() => {
+        alert.style.opacity = '0';
+        setTimeout(() => {
+            if (alert.parentNode) {
+                alert.parentNode.removeChild(alert);
+            }
+        }, 300);
+    }, 3000);
+}
+
+// =============== 原有函数 ===============
 
 // 初始化
 document.addEventListener('DOMContentLoaded', function() {
+    // 先设置基础的事件监听器，确保页面功能正常
     setupEventListeners();
     initNotificationBanner();
+    
+    // 然后检查登录状态
+    if (!checkAuth()) {
+        // 未登录时不加载文件，但页面基础功能仍然可用
+        return;
+    }
+    
+    // 已登录才加载文件
     loadFiles();
 });
 
@@ -78,6 +234,11 @@ function setupEventListeners() {
     // 通知栏关闭按钮
     if (notificationClose) {
         notificationClose.addEventListener('click', closeNotificationBanner);
+    }
+    
+    // 登出按钮
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', logout);
     }
     
     // 上传取消按钮
@@ -131,7 +292,9 @@ async function loadFiles(path = currentPath) {
         }
         currentPath = path;
         
-        const response = await fetch(`${API_BASE_URL}/files?prefix=${encodeURIComponent(path)}`);
+        const response = await fetch(`${API_BASE_URL}/files?prefix=${encodeURIComponent(path)}`, {
+            headers: getAuthHeaders()
+        });
         const result = await response.json();
         
         console.log('API Response:', result); // 调试日志
@@ -323,14 +486,43 @@ function navigateToFolder(folderKey) {
 }
 
 // 下载文件
-function downloadFile(filePath) {
-    const downloadUrl = `${API_BASE_URL}/download/${filePath}`;
-    const link = document.createElement('a');
-    link.href = downloadUrl;
-    link.download = '';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+async function downloadFile(filePath) {
+    try {
+        // 显示下载提示
+        showAlert('正在准备下载...', 'success');
+        
+        const response = await fetch(`${API_BASE_URL}/download/${filePath}`, {
+            method: 'GET',
+            headers: getAuthHeaders()
+        });
+        
+        if (!response.ok) {
+            throw new Error(`下载失败: ${response.status} ${response.statusText}`);
+        }
+        
+        // 获取文件blob
+        const blob = await response.blob();
+        
+        // 从filePath提取文件名
+        const fileName = filePath.split('/').pop() || 'download';
+        
+        // 创建下载链接
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // 清理blob URL
+        window.URL.revokeObjectURL(downloadUrl);
+        
+        showAlert('下载开始', 'success');
+    } catch (error) {
+        console.error('下载文件失败:', error);
+        showAlert('下载失败: ' + error.message, 'error');
+    }
 }
 
 // 删除文件或文件夹
@@ -377,9 +569,7 @@ async function deleteFolderRecursively(folderPath) {
         // 使用批量删除API删除所有内容
         const response = await fetch(`${API_BASE_URL}/batch/delete`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: getAuthHeaders(),
             body: JSON.stringify({
                 items: allItems
             })
@@ -442,7 +632,8 @@ async function getAllItemsInFolder(folderPath) {
 async function deleteSingleItem(itemPath) {
     const encodedPath = itemPath.split('/').map(part => encodeURIComponent(part)).join('/');
     const response = await fetch(`${API_BASE_URL}/files/${encodedPath}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: getAuthHeaders()
     });
     
     const result = await response.json();
@@ -525,9 +716,7 @@ async function deleteSelectedFiles() {
         if (finalItemsList.length > 0) {
             const response = await fetch(`${API_BASE_URL}/batch/delete`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: getAuthHeaders(),
                 body: JSON.stringify({
                     items: finalItemsList
                 })
@@ -599,6 +788,9 @@ async function handleFileUpload(e) {
             
             const response = await fetch(`${API_BASE_URL}/upload`, {
                 method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${authToken}`
+                },
                 body: formData
             });
             
@@ -643,9 +835,7 @@ async function createFolder() {
     try {
         const response = await fetch(`${API_BASE_URL}/folders`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: getAuthHeaders(),
             body: JSON.stringify({
                 folderPath: folderPath
             })
@@ -878,9 +1068,7 @@ async function createFolderIfNeeded(folderPath) {
     try {
         const response = await fetch(`${API_BASE_URL}/folders`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: getAuthHeaders(),
             body: JSON.stringify({
                 folderPath: fullFolderPath
             })
@@ -911,6 +1099,9 @@ async function uploadSingleFile(file, targetPath) {
     
     const response = await fetch(`${API_BASE_URL}/upload`, {
         method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${authToken}`
+        },
         body: formData
     });
     
@@ -1025,8 +1216,8 @@ function loadPreviewImage(imagePath) {
         showImageError();
     };
     
-    // 开始加载图片
     img.src = imageUrl;
+    showImageLoading();
 }
 
 function closeImagePreview() {
@@ -1042,13 +1233,8 @@ function closeImagePreview() {
 function downloadCurrentImage() {
     if (!currentImagePath) return;
     
-    const downloadUrl = `${API_BASE_URL}/download/${currentImagePath}`;
-    const link = document.createElement('a');
-    link.href = downloadUrl;
-    link.download = '';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    // 使用修复后的下载函数
+    downloadFile(currentImagePath);
 }
 
 function retryImageLoad() {

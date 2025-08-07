@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>测试页面</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-button {
+            background: #007AFF;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 10px;
+        }
+        .test-result {
+            background: #f8f9fa;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 6px;
+            border-left: 4px solid #007AFF;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🧪 bkp-drive 功能测试</h1>
+        
+        <div class="test-section">
+            <h2>认证测试</h2>
+            <button class="test-button" onclick="testRegister()">测试注册</button>
+            <button class="test-button" onclick="testLogin()">测试登录</button>
+            <button class="test-button" onclick="testProfile()">测试获取用户信息</button>
+            <div id="auth-results"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>文件API测试</h2>
+            <button class="test-button" onclick="testListFiles()">测试文件列表</button>
+            <button class="test-button" onclick="clearAuthData()">清除登录数据</button>
+            <div id="file-results"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>页面跳转测试</h2>
+            <a href="register.html" class="test-button" style="display:inline-block; text-decoration:none;">注册页面</a>
+            <a href="login.html" class="test-button" style="display:inline-block; text-decoration:none;">登录页面</a>
+            <a href="pan.html" class="test-button" style="display:inline-block; text-decoration:none;">网盘页面</a>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:18666/api/v1';
+        let authToken = null;
+
+        function displayResult(containerId, title, result) {
+            const container = document.getElementById(containerId);
+            const resultDiv = document.createElement('div');
+            resultDiv.className = 'test-result';
+            resultDiv.innerHTML = `<strong>${title}:</strong><br><pre>${JSON.stringify(result, null, 2)}</pre>`;
+            container.appendChild(resultDiv);
+        }
+
+        async function testRegister() {
+            const username = 'testuser' + Math.floor(Math.random() * 1000);
+            const password = 'password123';
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/auth/register`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const result = await response.json();
+                displayResult('auth-results', '注册测试', result);
+                
+                if (result.success) {
+                    // 注册成功后自动登录
+                    setTimeout(() => testLoginWithCredentials(username, password), 1000);
+                }
+            } catch (error) {
+                displayResult('auth-results', '注册测试 - 错误', { error: error.message });
+            }
+        }
+
+        async function testLogin() {
+            await testLoginWithCredentials('testuser', 'password123');
+        }
+
+        async function testLoginWithCredentials(username, password) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const result = await response.json();
+                displayResult('auth-results', '登录测试', result);
+                
+                if (result.success) {
+                    authToken = result.token;
+                    localStorage.setItem('auth_token', authToken);
+                    localStorage.setItem('user_info', JSON.stringify(result.user));
+                }
+            } catch (error) {
+                displayResult('auth-results', '登录测试 - 错误', { error: error.message });
+            }
+        }
+
+        async function testProfile() {
+            if (!authToken) {
+                displayResult('auth-results', '用户信息测试', { error: '请先登录' });
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/auth/profile`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                const result = await response.json();
+                displayResult('auth-results', '用户信息测试', result);
+            } catch (error) {
+                displayResult('auth-results', '用户信息测试 - 错误', { error: error.message });
+            }
+        }
+
+        async function testListFiles() {
+            if (!authToken) {
+                authToken = localStorage.getItem('auth_token');
+                if (!authToken) {
+                    displayResult('file-results', '文件列表测试', { error: '请先登录' });
+                    return;
+                }
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/files`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                const result = await response.json();
+                displayResult('file-results', '文件列表测试', result);
+            } catch (error) {
+                displayResult('file-results', '文件列表测试 - 错误', { error: error.message });
+            }
+        }
+
+        function clearAuthData() {
+            authToken = null;
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('user_info');
+            localStorage.removeItem('auth_expiry');
+            displayResult('file-results', '清除登录数据', { message: '已清除所有登录数据' });
+        }
+
+        // 页面加载时检查是否有现有的token
+        document.addEventListener('DOMContentLoaded', function() {
+            authToken = localStorage.getItem('auth_token');
+            if (authToken) {
+                displayResult('auth-results', '页面加载', { message: '发现已保存的登录token' });
+            }
+        });
+    </script>
+</body>
+</html>
