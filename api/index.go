@@ -6,11 +6,13 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+	"net/url"
 
 	"golang.org/x/crypto/bcrypt"
 	"github.com/golang-jwt/jwt/v4"
@@ -50,6 +52,8 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 		handleFiles(w, r)
 	case path == "/upload":
 		handleUpload(w, r)
+	case strings.HasPrefix(path, "/download/"):
+		handleDownload(w, r)
 	default:
 		w.WriteHeader(http.StatusNotFound)
 		json.NewEncoder(w).Encode(map[string]interface{}{
@@ -591,4 +595,153 @@ func getEnvOrDefault(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+// handleDownload 处理文件下载请求
+func handleDownload(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Method not allowed",
+		})
+		return
+	}
+
+	// 验证JWT token
+	if !validateJWTToken(r) {
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "未授权访问",
+		})
+		return
+	}
+
+	// 提取文件路径 (去掉 /download/ 前缀)
+	path := strings.TrimPrefix(r.URL.Path, "/api/download/")
+	if path == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "文件路径不能为空",
+		})
+		return
+	}
+
+	// URL解码文件路径
+	decodedPath, err := url.QueryUnescape(path)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "文件路径格式错误: " + err.Error(),
+		})
+		return
+	}
+
+	// 获取TOS客户端
+	tosClient, err := getTOSClient()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "TOS服务初始化失败: " + err.Error(),
+		})
+		return
+	}
+
+	// 检查是否有TOS处理参数（图片缩略图或视频截图）
+	processParam := r.URL.Query().Get("x-tos-process")
+	bucketName := os.Getenv("TOS_BUCKET_NAME")
+	
+	ctx := context.Background()
+
+	if processParam != "" {
+		// 使用TOS处理功能（缩略图/视频截图）
+		processInput := &tos.GetObjectV2Input{
+			Bucket:  bucketName,
+			Key:     decodedPath,
+			Process: processParam,
+		}
+		
+		output, err := tosClient.GetObjectV2(ctx, processInput)
+		if err != nil {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"success": false,
+				"error":   "文件下载失败: " + err.Error(),
+			})
+			return
+		}
+		defer output.Content.Close()
+
+		// 设置响应头
+		if output.ContentType != "" {
+			w.Header().Set("Content-Type", output.ContentType)
+		} else {
+			// 根据处理类型推测内容类型
+			if strings.Contains(processParam, "video/snapshot") {
+				w.Header().Set("Content-Type", "image/jpeg")
+			} else if strings.Contains(processParam, "image/resize") {
+				w.Header().Set("Content-Type", getContentTypeFromKey(decodedPath))
+			}
+		}
+
+		// 设置文件下载头
+		fileName := filepath.Base(decodedPath)
+		if strings.Contains(processParam, "video/snapshot") {
+			// 视频截图保存为jpg格式
+			fileName = strings.TrimSuffix(fileName, filepath.Ext(fileName)) + "_thumb.jpg"
+		} else if strings.Contains(processParam, "image/resize") {
+			// 图片缩略图保持原格式
+			fileName = strings.TrimSuffix(fileName, filepath.Ext(fileName)) + "_thumb" + filepath.Ext(fileName)
+		}
+
+		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", fileName))
+
+		// 复制文件内容
+		_, err = io.Copy(w, output.Content)
+		if err != nil {
+			return // 无法再发送错误响应，因为已经开始写入响应体
+		}
+	} else {
+		// 普通文件下载
+		input := &tos.GetObjectV2Input{
+			Bucket: bucketName,
+			Key:    decodedPath,
+		}
+		
+		output, err := tosClient.GetObjectV2(ctx, input)
+		if err != nil {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"success": false,
+				"error":   "文件下载失败: " + err.Error(),
+			})
+			return
+		}
+		defer output.Content.Close()
+
+		// 设置响应头
+		if output.ContentType != "" {
+			w.Header().Set("Content-Type", output.ContentType)
+		} else {
+			w.Header().Set("Content-Type", getContentTypeFromKey(decodedPath))
+		}
+		
+		if output.ContentLength > 0 {
+			w.Header().Set("Content-Length", fmt.Sprintf("%d", output.ContentLength))
+		}
+
+		// 设置文件下载头
+		fileName := filepath.Base(decodedPath)
+		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", fileName))
+
+		// 复制文件内容
+		_, err = io.Copy(w, output.Content)
+		if err != nil {
+			return // 无法再发送错误响应，因为已经开始写入响应体
+		}
+	}
 }
