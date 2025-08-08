@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用户登录 - 不靠谱网盘</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #333;
+        }
+
+        .login-container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 40px;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .logo h1 {
+            font-size: 28px;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .logo p {
+            color: #666;
+            font-size: 16px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.8);
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: #007AFF;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 14px;
+            background: #007AFF;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 15px;
+        }
+
+        .btn:hover {
+            background: #0056CC;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0, 122, 255, 0.3);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+            color: #007AFF;
+        }
+
+        .alert {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .alert-success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert-error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .link-section {
+            text-align: center;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #e1e5e9;
+        }
+
+        .link-section a {
+            color: #007AFF;
+            text-decoration: none;
+            font-weight: 500;
+            margin: 0 10px;
+        }
+
+        .link-section a:hover {
+            text-decoration: underline;
+        }
+
+        .remember-me {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .remember-me input[type="checkbox"] {
+            margin-right: 8px;
+        }
+
+        @media (max-width: 480px) {
+            .login-container {
+                margin: 20px;
+                padding: 30px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="logo">
+            <h1>🗂️ 不靠谱网盘</h1>
+            <p>登录您的账号</p>
+        </div>
+
+        <div id="alert-container"></div>
+        
+        <form id="login-form">
+            <div class="form-group">
+                <label for="username">用户名</label>
+                <input type="text" id="username" class="form-control" required 
+                       placeholder="请输入用户名">
+            </div>
+
+            <div class="form-group">
+                <label for="password">密码</label>
+                <input type="password" id="password" class="form-control" required 
+                       placeholder="请输入密码">
+            </div>
+
+            <div class="remember-me">
+                <input type="checkbox" id="remember-me">
+                <label for="remember-me">记住我</label>
+            </div>
+
+            <button type="submit" class="btn" id="login-btn">
+                登录
+            </button>
+        </form>
+
+        <div class="loading" id="loading">
+            <div>正在登录...</div>
+        </div>
+
+        <div class="link-section">
+            <p>
+                <a href="register.html">注册新账号</a>
+                <a href="index.html">返回首页</a>
+            </p>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = window.location.hostname === 'localhost' 
+            ? 'http://localhost:3000/api' 
+            : '/api';
+        
+        const form = document.getElementById('login-form');
+        const loginBtn = document.getElementById('login-btn');
+        const loading = document.getElementById('loading');
+        const alertContainer = document.getElementById('alert-container');
+        const rememberMeCheckbox = document.getElementById('remember-me');
+
+        // 显示提示消息
+        function showAlert(message, type) {
+            alertContainer.innerHTML = `
+                <div class="alert alert-${type}">
+                    ${message}
+                </div>
+            `;
+            alertContainer.firstElementChild.style.display = 'block';
+        }
+
+        // 隐藏提示消息
+        function hideAlert() {
+            alertContainer.innerHTML = '';
+        }
+
+        // 保存登录状态
+        function saveLoginState(token, user, remember) {
+            const storage = remember ? localStorage : sessionStorage;
+            storage.setItem('auth_token', token);
+            storage.setItem('user_info', JSON.stringify(user));
+            
+            // 如果选择记住我，设置较长的过期时间
+            if (remember) {
+                const expiryTime = Date.now() + (7 * 24 * 60 * 60 * 1000); // 7天
+                localStorage.setItem('auth_expiry', expiryTime.toString());
+            }
+        }
+
+        // 检查是否已经登录
+        function checkExistingLogin() {
+            const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
+            const expiry = localStorage.getItem('auth_expiry');
+            
+            if (token) {
+                // 检查是否过期
+                if (expiry && Date.now() > parseInt(expiry)) {
+                    // 已过期，清除数据
+                    localStorage.removeItem('auth_token');
+                    localStorage.removeItem('user_info');
+                    localStorage.removeItem('auth_expiry');
+                    return false;
+                }
+                
+                // 如果已登录，直接跳转到网盘页面
+                window.location.href = 'pan.html';
+                return true;
+            }
+            return false;
+        }
+
+        // 表单提交
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            hideAlert();
+
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            const rememberMe = rememberMeCheckbox.checked;
+
+            // 前端验证
+            if (!username || !password) {
+                showAlert('请填写用户名和密码', 'error');
+                return;
+            }
+
+            // 显示加载状态
+            loginBtn.disabled = true;
+            loading.style.display = 'block';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        username: username,
+                        password: password
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    showAlert('登录成功！正在跳转...', 'success');
+                    
+                    // 保存登录状态
+                    saveLoginState(data.token, data.user, rememberMe);
+                    
+                    // 跳转到网盘页面
+                    setTimeout(() => {
+                        window.location.href = 'pan.html';
+                    }, 1500);
+                } else {
+                    showAlert(data.error || '登录失败，请检查用户名和密码', 'error');
+                }
+            } catch (error) {
+                console.error('登录错误:', error);
+                showAlert('网络错误，请检查服务器连接', 'error');
+            } finally {
+                loginBtn.disabled = false;
+                loading.style.display = 'none';
+            }
+        });
+
+        // 页面加载时检查登录状态
+        document.addEventListener('DOMContentLoaded', () => {
+            if (!checkExistingLogin()) {
+                // 没有登录，聚焦用户名输入框
+                document.getElementById('username').focus();
+            }
+        });
+
+        // 回车键快速登录
+        document.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !loginBtn.disabled) {
+                form.dispatchEvent(new Event('submit'));
+            }
+        });
+    </script>
+</body>
+</html>

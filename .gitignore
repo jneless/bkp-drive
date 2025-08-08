@@ -89,3 +89,10 @@ fabric.properties
 
 # Editor-based Rest Client
 .idea/httpRequests
+
+# Environment variables
+.env
+.env.local
+.env.example
+.env.production
+.vercel

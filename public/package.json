@@ -1,0 +1,17 @@
+{
+  "name": "bkp-drive-frontend",
+  "version": "1.0.0",
+  "description": "不靠谱网盘前端界面",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "python3 -m http.server 8080",
+    "build": "echo 'Build completed'",
+    "electron": "electron ."
+  },
+  "keywords": ["cloud-drive", "file-manager", "electron"],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {},
+  "dependencies": {}
+}

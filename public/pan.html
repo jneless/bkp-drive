@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>不靠谱网盘 - 文件管理</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- 全局消息通知栏 -->
+    <div class="notification-banner" id="notification-banner">
+        <div class="notification-content">
+            <div class="notification-message">
+                <span class="notification-icon">⚠️</span>
+                <span class="notification-text">不靠谱网盘，为用户提供0个9的可用性承诺</span>
+            </div>
+            <button class="notification-close" id="notification-close">朕知道了</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <header>
+            <div class="header-left">
+                <h1><a href="index.html" style="text-decoration: none; color: inherit;">🗂️ 不靠谱网盘</a></h1>
+                <div class="breadcrumb" id="breadcrumb">
+                    <span class="breadcrumb-item" data-path="">根目录</span>
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="user-info" id="user-info" style="margin-right: 15px; display: none;">
+                    <span class="user-greeting">👋 欢迎，<span id="username-display"></span></span>
+                    <button id="logout-btn" class="btn btn-small" style="margin-left: 10px;">登出</button>
+                </div>
+                <button id="upload-btn" class="btn btn-primary">📤 上传文件</button>
+                <button id="upload-folder-btn" class="btn btn-primary">📁 上传文件夹</button>
+                <button id="new-folder-btn" class="btn btn-secondary">📁 新建文件夹</button>
+            </div>
+        </header>
+
+        <div class="toolbar">
+            <div class="toolbar-left">
+                <button id="select-all-btn" class="btn btn-small">全选</button>
+                <button id="clear-selection-btn" class="btn btn-small">取消选择</button>
+                <span id="selection-count" class="selection-info">已选择: 0 项</span>
+            </div>
+            <div class="toolbar-right">
+                <div class="view-mode-toggle">
+                    <button id="list-view-btn" class="btn btn-small view-mode-btn active" title="列表视图">
+                        <span>📋</span>
+                    </button>
+                    <button id="grid-view-btn" class="btn btn-small view-mode-btn" title="图标视图">
+                        <span>🔲</span>
+                    </button>
+                </div>
+                <button id="delete-selected-btn" class="btn btn-danger" disabled>🗑️ 删除选中</button>
+                <button id="refresh-btn" class="btn btn-small">🔄 刷新</button>
+            </div>
+        </div>
+
+        <div class="file-list" id="file-list">
+            <div class="loading" id="loading">加载中...</div>
+        </div>
+    </div>
+
+    <!-- 上传文件对话框 -->
+    <input type="file" id="file-input" style="display: none;" multiple>
+    <input type="file" id="folder-input" style="display: none;" webkitdirectory directory multiple>
+
+    <!-- 新建文件夹对话框 -->
+    <div id="folder-modal" class="modal">
+        <div class="modal-content">
+            <h3>新建文件夹</h3>
+            <input type="text" id="folder-name" placeholder="请输入文件夹名称">
+            <div class="modal-actions">
+                <button id="create-folder-btn" class="btn btn-primary">创建</button>
+                <button id="cancel-folder-btn" class="btn btn-secondary">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 上传进度显示 -->
+    <div id="upload-progress-modal" class="modal">
+        <div class="modal-content">
+            <h3>上传进度</h3>
+            <div class="upload-progress">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progress-fill"></div>
+                </div>
+                <div class="progress-info">
+                    <span id="progress-text">正在上传...</span>
+                    <span id="progress-percentage">0%</span>
+                </div>
+                <div class="upload-details" id="upload-details">
+                    正在处理文件...
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button id="cancel-upload-btn" class="btn btn-secondary">取消上传</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 图片预览模态框 -->
+    <div id="image-preview-modal" class="modal image-modal">
+        <div class="image-modal-content">
+            <div class="image-modal-header">
+                <div class="image-header-left">
+                    <h3 id="image-title">图片预览</h3>
+                    <div class="image-path" id="image-path">/</div>
+                </div>
+                <button id="close-image-modal" class="close-btn">×</button>
+            </div>
+            <div class="image-container">
+                <img id="preview-image" src="" alt="图片预览" />
+                <div class="image-loading" id="image-loading">加载中...</div>
+                <div class="image-error" id="image-error" style="display: none;">
+                    <p>图片加载失败</p>
+                    <button id="retry-image" class="btn btn-primary">重试</button>
+                </div>
+            </div>
+            <div class="image-modal-footer">
+                <button id="download-image" class="btn btn-primary">下载图片</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
