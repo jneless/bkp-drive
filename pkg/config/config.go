@@ -26,11 +26,16 @@ type Config struct {
 func LoadConfig() *Config {
 	return &Config{
 		// TOS配置
-		TOSEndpoint: getEnvOrDefault("TOS_ENDPOINT", "https://tos-cn-beijing.volces.com"),
-		TOSRegion:   getEnvOrDefault("TOS_REGION", "cn-beijing"),
-		AccessKey:   os.Getenv("TOS_ACCESS_KEY"),
-		SecretKey:   os.Getenv("TOS_SECRET_KEY"),
-		BucketName:  getEnvOrDefault("TOS_BUCKET_NAME", "bkp-drive-bucket"),
+
+		AccessKey: os.Getenv("TOS_ACCESS_KEY"),
+		SecretKey: os.Getenv("TOS_SECRET_KEY"),
+
+		// TOSEndpoint: getEnvOrDefault("TOS_ENDPOINT", "https://tos-cn-beijing.volces.com"),
+		// TOSRegion:   getEnvOrDefault("TOS_REGION", "cn-beijing"),
+		// BucketName:  getEnvOrDefault("TOS_BUCKET_NAME", "bkp-drive-bucket"),
+		TOSEndpoint: os.Getenv("TOS_ENDPOINT"),
+		TOSRegion:   os.Getenv("TOS_REGION"),
+		BucketName:  os.Getenv("TOS_BUCKET_NAME"),
 
 		// mysql conf
 		MySQLUsername: os.Getenv("MYSQL_USERNAME"),
