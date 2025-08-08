@@ -219,7 +219,7 @@
     </div>
 
     <script>
-        const API_BASE_URL = 'http://localhost:18666/api/v1';
+        const API_BASE_URL = `${window.location.protocol}//${window.location.host}/api/v1`;
         
         const form = document.getElementById('login-form');
         const loginBtn = document.getElementById('login-btn');

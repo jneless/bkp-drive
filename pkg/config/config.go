@@ -11,14 +11,14 @@ type Config struct {
 	AccessKey   string
 	SecretKey   string
 	BucketName  string
-	
+
 	// MySQL配置
 	MySQLUsername string
 	MySQLPassword string
 	MySQLHost     string
 	MySQLPort     string
 	MySQLDatabase string
-	
+
 	// JWT密钥
 	JWTSecret string
 }
@@ -31,16 +31,16 @@ func LoadConfig() *Config {
 		AccessKey:   os.Getenv("TOS_ACCESS_KEY"),
 		SecretKey:   os.Getenv("TOS_SECRET_KEY"),
 		BucketName:  getEnvOrDefault("TOS_BUCKET_NAME", "bkp-drive-bucket"),
-		
-		// MySQL配置
-		MySQLUsername: getEnvOrDefault("MYSQL_USERNAME", "root"),
-		MySQLPassword: getEnvOrDefault("MYSQL_PASSWORD", ""),
-		MySQLHost:     getEnvOrDefault("MYSQL_HOST", "localhost"),
-		MySQLPort:     getEnvOrDefault("MYSQL_PORT", "3306"),
-		MySQLDatabase: getEnvOrDefault("MYSQL_DATABASE", "bkp_drive"),
-		
+
+		// mysql conf
+		MySQLUsername: os.Getenv("MYSQL_USERNAME"),
+		MySQLPassword: os.Getenv("MYSQL_PASSWORD"),
+		MySQLHost:     os.Getenv("MYSQL_HOST"),
+		MySQLPort:     os.Getenv("MYSQL_PORT"),
+		MySQLDatabase: os.Getenv("MYSQL_DATABASE"),
+
 		// JWT密钥
-		JWTSecret: getEnvOrDefault("JWT_SECRET", "bkp-drive-jwt-secret-key-2024"),
+		JWTSecret: os.Getenv("JWT_SECRET"),
 	}
 }
 

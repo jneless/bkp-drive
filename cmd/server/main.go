@@ -5,10 +5,10 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	ginSwagger "github.com/swaggo/gin-swagger"
 	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 
-	_ "bkp-drive/docs"  // 导入生成的swagger文档
+	_ "bkp-drive/docs" // 导入生成的swagger文档
 	"bkp-drive/internal/handlers"
 	"bkp-drive/internal/middleware"
 	"bkp-drive/internal/services"
@@ -73,6 +73,7 @@ func main() {
 	// 静态文件服务
 	r.Static("/static", "./frontend")
 	r.StaticFile("/", "./frontend/index.html")
+	r.StaticFile("/index.html", "./frontend/index.html")
 	r.StaticFile("/pan.html", "./frontend/pan.html")
 	r.StaticFile("/login.html", "./frontend/login.html")
 	r.StaticFile("/register.html", "./frontend/register.html")
@@ -84,7 +85,7 @@ func main() {
 	fileHandler := handlers.NewFileHandler(tosClient)
 	advancedHandler := handlers.NewAdvancedHandler(tosClient)
 	shareHandler := handlers.NewShareHandler(tosClient)
-	
+
 	// 用户服务和认证处理器
 	userService := services.NewUserService(cfg.JWTSecret)
 	authHandler := handlers.NewAuthHandler(userService)
@@ -150,9 +151,9 @@ func main() {
 	// API健康检查和示例 (移动到/api路径)
 	r.GET("/api", func(c *gin.Context) {
 		c.JSON(200, gin.H{
-			"status":  "ok",
-			"service": "bkp-drive (不靠谱网盘)",
-			"version": "2.0.0",
+			"status":      "ok",
+			"service":     "bkp-drive (不靠谱网盘)",
+			"version":     "2.0.0",
 			"description": "基于火山引擎TOS的云存储后端服务",
 			"health": gin.H{
 				"database": "ok",
@@ -162,27 +163,27 @@ func main() {
 			"features": []string{
 				"用户认证",
 				"基础文件操作",
-				"批量操作", 
+				"批量操作",
 				"文件搜索",
 				"文件分享",
 				"存储统计",
 			},
 			"api_examples": gin.H{
-				"register": "curl -X POST http://localhost:18666/api/v1/auth/register -H \"Content-Type: application/json\" -d '{\"username\":\"test\",\"password\":\"password\"}'",
-				"login": "curl -X POST http://localhost:18666/api/v1/auth/login -H \"Content-Type: application/json\" -d '{\"username\":\"test\",\"password\":\"password\"}'",
-				"upload_file": "curl -X POST http://localhost:18666/api/v1/upload -H \"Authorization: Bearer YOUR_TOKEN\" -F \"file=@test.txt\" -F \"folder=documents\"",
-				"list_files": "curl -H \"Authorization: Bearer YOUR_TOKEN\" http://localhost:18666/api/v1/files",
+				"register":      "curl -X POST http://localhost:18666/api/v1/auth/register -H \"Content-Type: application/json\" -d '{\"username\":\"test\",\"password\":\"password\"}'",
+				"login":         "curl -X POST http://localhost:18666/api/v1/auth/login -H \"Content-Type: application/json\" -d '{\"username\":\"test\",\"password\":\"password\"}'",
+				"upload_file":   "curl -X POST http://localhost:18666/api/v1/upload -H \"Authorization: Bearer YOUR_TOKEN\" -F \"file=@test.txt\" -F \"folder=documents\"",
+				"list_files":    "curl -H \"Authorization: Bearer YOUR_TOKEN\" http://localhost:18666/api/v1/files",
 				"download_file": "curl -H \"Authorization: Bearer YOUR_TOKEN\" -o downloaded.txt \"http://localhost:18666/api/v1/download/documents/test.txt\"",
-				"delete_file": "curl -X DELETE -H \"Authorization: Bearer YOUR_TOKEN\" \"http://localhost:18666/api/v1/files/documents/test.txt\"",
+				"delete_file":   "curl -X DELETE -H \"Authorization: Bearer YOUR_TOKEN\" \"http://localhost:18666/api/v1/files/documents/test.txt\"",
 				"create_folder": "curl -X POST -H \"Authorization: Bearer YOUR_TOKEN\" http://localhost:18666/api/v1/folders -H \"Content-Type: application/json\" -d '{\"name\":\"new-folder\"}'",
-				"batch_delete": "curl -X POST -H \"Authorization: Bearer YOUR_TOKEN\" http://localhost:18666/api/v1/batch/delete -H \"Content-Type: application/json\" -d '{\"items\":[\"file1.txt\",\"file2.txt\"]}'",
-				"search_files": "curl -H \"Authorization: Bearer YOUR_TOKEN\" \"http://localhost:18666/api/v1/search?q=document&limit=10\"",
-				"create_share": "curl -X POST -H \"Authorization: Bearer YOUR_TOKEN\" http://localhost:18666/api/v1/share/create -H \"Content-Type: application/json\" -d '{\"fileKey\":\"documents/report.pdf\",\"password\":\"123456\",\"allowDownload\":true}'",
+				"batch_delete":  "curl -X POST -H \"Authorization: Bearer YOUR_TOKEN\" http://localhost:18666/api/v1/batch/delete -H \"Content-Type: application/json\" -d '{\"items\":[\"file1.txt\",\"file2.txt\"]}'",
+				"search_files":  "curl -H \"Authorization: Bearer YOUR_TOKEN\" \"http://localhost:18666/api/v1/search?q=document&limit=10\"",
+				"create_share":  "curl -X POST -H \"Authorization: Bearer YOUR_TOKEN\" http://localhost:18666/api/v1/share/create -H \"Content-Type: application/json\" -d '{\"fileKey\":\"documents/report.pdf\",\"password\":\"123456\",\"allowDownload\":true}'",
 				"storage_stats": "curl -H \"Authorization: Bearer YOUR_TOKEN\" http://localhost:18666/api/v1/stats/storage",
 			},
 			"documentation": gin.H{
 				"api_docs": "查看 API.md 和 API_EXTENDED.md 了解完整API文档",
-				"github": "https://github.com/jneless/bkp-drive",
+				"github":   "https://github.com/jneless/bkp-drive",
 			},
 		})
 	})
