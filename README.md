@@ -47,6 +47,8 @@ export MYSQL_HOST="localhost"
 export MYSQL_PORT="3306"
 export MYSQL_DATABASE="bkp_drive"
 
+export JWT_SECRET="jwt_secret_key"
+
 ```
 
 ### 数据库初始化
@@ -62,7 +64,7 @@ mysql -u root -p < scripts/init_db.sql
 # 安装依赖
 go mod tidy
 
-# 启动HTTP服务器
+# 启动服务器
 go run cmd/server/main.go
 ```
 
