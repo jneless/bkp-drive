@@ -48,10 +48,16 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 		handleRegister(w, r)
 	case path == "/login":
 		handleLogin(w, r)
-	case path == "/files":
+	case path == "/files" && r.Method == "GET":
 		handleFiles(w, r)
+	case strings.HasPrefix(path, "/files/") && r.Method == "DELETE":
+		handleDeleteFile(w, r)
+	case path == "/batch/delete":
+		handleBatchDelete(w, r)
 	case path == "/upload":
 		handleUpload(w, r)
+	case path == "/folders":
+		handleFolders(w, r)
 	case strings.HasPrefix(path, "/download/"):
 		handleDownload(w, r)
 	default:
@@ -431,12 +437,373 @@ func handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 暂时返回上传成功的占位响应
+	// 解析multipart form
+	err := r.ParseMultipartForm(32 << 20) // 32MB max memory
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "解析上传文件失败: " + err.Error(),
+		})
+		return
+	}
+
+	file, fileHeader, err := r.FormFile("file")
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "获取上传文件失败: " + err.Error(),
+		})
+		return
+	}
+	defer file.Close()
+
+	folder := r.FormValue("folder")
+	if folder == "" {
+		folder = ""
+	} else if !strings.HasSuffix(folder, "/") {
+		folder += "/"
+	}
+
+	// 构造文件路径
+	fileName := fileHeader.Filename
+	filePath := folder + fileName
+
+	// 获取TOS客户端
+	tosClient, err := getTOSClient()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "TOS服务初始化失败: " + err.Error(),
+		})
+		return
+	}
+
+	bucketName := os.Getenv("TOS_BUCKET_NAME")
+	if bucketName == "" {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "TOS_BUCKET_NAME环境变量未设置",
+		})
+		return
+	}
+
+	// 推测Content-Type
+	contentType := getContentTypeFromKey(fileName)
+
+	// 上传文件到TOS
+	ctx := context.Background()
+	input := &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{
+			Bucket:      bucketName,
+			Key:         filePath,
+			ContentType: contentType,
+		},
+		Content: file,
+	}
+
+	output, err := tosClient.PutObjectV2(ctx, input)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "文件上传失败: " + err.Error(),
+		})
+		return
+	}
+
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,
 		"message": "文件上传成功",
-		"key":     "placeholder-file-key",
-		"url":     "https://example.com/placeholder-file",
+		"key":     filePath,
+		"etag":    strings.Trim(output.ETag, "\""),
+		"size":    fileHeader.Size,
+	})
+}
+
+func handleFolders(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Method not allowed",
+		})
+		return
+	}
+
+	// 验证JWT token
+	if !validateJWTToken(r) {
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "未授权访问",
+		})
+		return
+	}
+
+	var req struct {
+		FolderPath string `json:"folderPath"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "请求参数错误: " + err.Error(),
+		})
+		return
+	}
+
+	if req.FolderPath == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "文件夹路径不能为空",
+		})
+		return
+	}
+
+	// 确保文件夹路径以 / 结尾
+	if !strings.HasSuffix(req.FolderPath, "/") {
+		req.FolderPath += "/"
+	}
+
+	// 获取TOS客户端
+	tosClient, err := getTOSClient()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "TOS服务初始化失败: " + err.Error(),
+		})
+		return
+	}
+
+	bucketName := os.Getenv("TOS_BUCKET_NAME")
+	if bucketName == "" {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "TOS_BUCKET_NAME环境变量未设置",
+		})
+		return
+	}
+
+	// 创建文件夹（通过创建一个以 / 结尾的空对象）
+	ctx := context.Background()
+	input := &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{
+			Bucket: bucketName,
+			Key:    req.FolderPath,
+		},
+		Content: strings.NewReader(""),
+	}
+
+	_, err = tosClient.PutObjectV2(ctx, input)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "创建文件夹失败: " + err.Error(),
+		})
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"message": "文件夹创建成功",
+		"path":    req.FolderPath,
+	})
+}
+
+func handleDeleteFile(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "DELETE" {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Method not allowed",
+		})
+		return
+	}
+
+	// 验证JWT token
+	if !validateJWTToken(r) {
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "未授权访问",
+		})
+		return
+	}
+
+	// 提取文件路径 (去掉 /files/ 前缀)
+	path := strings.TrimPrefix(r.URL.Path, "/api/files/")
+	if path == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "文件路径不能为空",
+		})
+		return
+	}
+
+	// URL解码文件路径
+	decodedPath, err := url.QueryUnescape(path)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "文件路径格式错误: " + err.Error(),
+		})
+		return
+	}
+
+	// 获取TOS客户端
+	tosClient, err := getTOSClient()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "TOS服务初始化失败: " + err.Error(),
+		})
+		return
+	}
+
+	bucketName := os.Getenv("TOS_BUCKET_NAME")
+	if bucketName == "" {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "TOS_BUCKET_NAME环境变量未设置",
+		})
+		return
+	}
+
+	// 删除文件/文件夹
+	ctx := context.Background()
+	input := &tos.DeleteObjectV2Input{
+		Bucket: bucketName,
+		Key:    decodedPath,
+	}
+
+	_, err = tosClient.DeleteObjectV2(ctx, input)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "删除失败: " + err.Error(),
+		})
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"message": "删除成功",
+		"path":    decodedPath,
+	})
+}
+
+func handleBatchDelete(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Method not allowed",
+		})
+		return
+	}
+
+	// 验证JWT token
+	if !validateJWTToken(r) {
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "未授权访问",
+		})
+		return
+	}
+
+	var req struct {
+		Items []string `json:"items"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "请求参数错误: " + err.Error(),
+		})
+		return
+	}
+
+	if len(req.Items) == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "删除项目列表不能为空",
+		})
+		return
+	}
+
+	// 获取TOS客户端
+	tosClient, err := getTOSClient()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "TOS服务初始化失败: " + err.Error(),
+		})
+		return
+	}
+
+	bucketName := os.Getenv("TOS_BUCKET_NAME")
+	if bucketName == "" {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "TOS_BUCKET_NAME环境变量未设置",
+		})
+		return
+	}
+
+	// 构造批量删除请求（逐个删除）
+	ctx := context.Background()
+	
+	var successCount, failCount int
+	var errors []string
+
+	for _, item := range req.Items {
+		input := &tos.DeleteObjectV2Input{
+			Bucket: bucketName,
+			Key:    item,
+		}
+
+		_, err = tosClient.DeleteObjectV2(ctx, input)
+		if err != nil {
+			failCount++
+			errors = append(errors, fmt.Sprintf("%s: %s", item, err.Error()))
+		} else {
+			successCount++
+		}
+	}
+
+	if failCount > 0 {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"message": fmt.Sprintf("部分删除失败，成功: %d，失败: %d", successCount, failCount),
+			"errors":  errors,
+			"deleted": successCount,
+		})
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"message": fmt.Sprintf("批量删除成功，共删除 %d 个项目", successCount),
+		"deleted": successCount,
 	})
 }
 
