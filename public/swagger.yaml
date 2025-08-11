@@ -1,0 +1,384 @@
+basePath: /api/v1
+definitions:
+  models.BatchOperationRequest:
+    properties:
+      items:
+        description: 文件或文件夹的keys
+        items:
+          type: string
+        type: array
+    required:
+    - items
+    type: object
+  models.BatchOperationResponse:
+    properties:
+      failed:
+        type: integer
+      failedItems:
+        items:
+          type: string
+        type: array
+      message:
+        type: string
+      processed:
+        type: integer
+      success:
+        type: boolean
+    type: object
+  models.DeleteResponse:
+    properties:
+      message:
+        type: string
+      success:
+        type: boolean
+    type: object
+  models.ErrorResponse:
+    properties:
+      error:
+        type: string
+      success:
+        type: boolean
+    type: object
+  models.ExtendedFileInfo:
+    properties:
+      contentType:
+        type: string
+      etag:
+        type: string
+      isFolder:
+        type: boolean
+      key:
+        type: string
+      lastModified:
+        type: string
+      metadata:
+        additionalProperties:
+          type: string
+        type: object
+      name:
+        type: string
+      path:
+        type: string
+      shareCount:
+        type: integer
+      size:
+        type: integer
+      thumbnail:
+        type: string
+      versionCount:
+        type: integer
+    type: object
+  models.FileInfo:
+    properties:
+      contentType:
+        type: string
+      etag:
+        type: string
+      isFolder:
+        type: boolean
+      key:
+        type: string
+      lastModified:
+        type: string
+      metadata:
+        additionalProperties:
+          type: string
+        type: object
+      name:
+        type: string
+      size:
+        type: integer
+    type: object
+  models.ListResponse:
+    properties:
+      files:
+        items:
+          $ref: '#/definitions/models.FileInfo'
+        type: array
+      folders:
+        items:
+          type: string
+        type: array
+      message:
+        type: string
+      success:
+        type: boolean
+      total:
+        type: integer
+    type: object
+  models.SearchResponse:
+    properties:
+      message:
+        type: string
+      query:
+        type: string
+      results:
+        items:
+          $ref: '#/definitions/models.ExtendedFileInfo'
+        type: array
+      success:
+        type: boolean
+      total:
+        type: integer
+    type: object
+  models.UploadResponse:
+    properties:
+      key:
+        type: string
+      message:
+        type: string
+      success:
+        type: boolean
+      url:
+        type: string
+    type: object
+externalDocs:
+  description: OpenAPI
+  url: https://swagger.io/resources/open-api/
+host: localhost:8082
+info:
+  contact:
+    email: support@bkp-drive.com
+    name: API Support
+    url: http://github.com/jneless/bkp-drive
+  description: 基于火山引擎TOS的云存储后端服务 - 不靠谱网盘API文档
+  license:
+    name: MIT
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: bkp-drive API
+  version: 2.0.0
+paths:
+  /batch/delete:
+    post:
+      consumes:
+      - application/json
+      description: 一次性删除多个文件或文件夹
+      parameters:
+      - description: 批量删除请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.BatchOperationRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.BatchOperationResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: 批量删除文件
+      tags:
+      - 批量操作
+  /download/{key}:
+    get:
+      consumes:
+      - application/json
+      description: 下载原文件或获取TOS处理后的内容（如缩略图、视频截图等）
+      parameters:
+      - description: 文件路径（URL编码）
+        in: path
+        name: key
+        required: true
+        type: string
+      - description: TOS处理参数，如image/resize,w_128或video/snapshot,t_0,w_128,h_128,f_jpg
+        in: query
+        name: x-tos-process
+        type: string
+      produces:
+      - application/octet-stream
+      responses:
+        "200":
+          description: 文件内容或处理后的内容
+          schema:
+            type: file
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: 下载文件
+      tags:
+      - 文件操作
+  /files:
+    get:
+      consumes:
+      - application/json
+      description: 列出指定前缀下的文件和文件夹
+      parameters:
+      - description: 文件夹前缀路径
+        in: query
+        name: prefix
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.ListResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: 列出文件
+      tags:
+      - 文件操作
+  /files/{key}:
+    delete:
+      consumes:
+      - application/json
+      description: 删除指定的文件或空文件夹
+      parameters:
+      - description: 要删除的文件路径（URL编码）
+        in: path
+        name: key
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.DeleteResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: 删除文件
+      tags:
+      - 文件操作
+  /folders:
+    post:
+      consumes:
+      - application/json
+      description: 在TOS中创建一个新的文件夹
+      parameters:
+      - description: 文件夹创建请求
+        in: body
+        name: request
+        required: true
+        schema:
+          properties:
+            folderPath:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              folder:
+                type: string
+              message:
+                type: string
+              success:
+                type: boolean
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: 创建文件夹
+      tags:
+      - 文件操作
+  /search:
+    get:
+      consumes:
+      - application/json
+      description: 根据查询条件搜索文件，支持文件名、文件类型等多种筛选条件
+      parameters:
+      - description: 搜索关键词
+        in: query
+        name: q
+        type: string
+      - description: 搜索的文件夹
+        in: query
+        name: folder
+        type: string
+      - description: 文件类型过滤
+        in: query
+        name: fileType
+        type: string
+      - description: 返回结果数量限制
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SearchResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: 搜索文件
+      tags:
+      - 搜索功能
+  /upload:
+    post:
+      consumes:
+      - multipart/form-data
+      description: 上传单个文件到指定文件夹
+      parameters:
+      - description: 要上传的文件
+        in: formData
+        name: file
+        required: true
+        type: file
+      - description: 目标文件夹路径
+        in: formData
+        name: folder
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.UploadResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: 上传文件
+      tags:
+      - 文件操作
+securityDefinitions:
+  BasicAuth:
+    type: basic
+swagger: "2.0"
