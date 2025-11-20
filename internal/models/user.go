@@ -16,8 +16,9 @@ type User struct {
 
 // UserRegisterRequest 用户注册请求
 type UserRegisterRequest struct {
-	Username string `json:"username" binding:"required,min=3,max=30"`
-	Password string `json:"password" binding:"required,min=6"`
+	Username   string `json:"username" binding:"required,min=3,max=30"`
+	Password   string `json:"password" binding:"required,min=6"`
+	InviteCode string `json:"invite_code" binding:"required"`
 }
 
 // UserLoginRequest 用户登录请求  

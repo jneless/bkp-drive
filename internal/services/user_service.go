@@ -73,6 +73,11 @@ func (s *UserService) generateUniqueUserID() (string, error) {
 
 // RegisterUser 注册用户
 func (s *UserService) RegisterUser(req *models.UserRegisterRequest) (*models.User, error) {
+	// 验证邀请码
+	if req.InviteCode != "bkp" {
+		return nil, fmt.Errorf("邀请码错误")
+	}
+
 	// 检查用户名是否已存在
 	var count int
 	err := database.DB.QueryRow("SELECT COUNT(*) FROM users WHERE username = $1", req.Username).Scan(&count)
