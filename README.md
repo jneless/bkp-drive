@@ -138,10 +138,11 @@ vercel --prod
 - 环境变量管理和TOS连接配置
 - 服务器端口和CORS设置
 
-#### 🎨 前端界面 (`frontend/`)
-- 响应式Web界面和Electron桌面应用
+#### 🎨 前端界面 (`public/`)
+- 响应式Web界面
 - 文件上传、预览、批量操作交互
 - 图片和视频缩略图显示
+- Swagger API 文档界面
 
 #### 📚 API文档 (`docs/`)
 - Swagger自动生成的API文档

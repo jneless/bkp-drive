@@ -71,15 +71,13 @@ func main() {
 	}))
 
 	// 静态文件服务
-	r.Static("/static", "./frontend")
-	r.StaticFile("/", "./frontend/index.html")
-	r.StaticFile("/index.html", "./frontend/index.html")
-	r.StaticFile("/pan.html", "./frontend/pan.html")
-	r.StaticFile("/login.html", "./frontend/login.html")
-	r.StaticFile("/register.html", "./frontend/register.html")
-	r.StaticFile("/test.html", "./frontend/test.html")
-	r.StaticFile("/thumbnail-test.html", "./frontend/thumbnail-test.html")
-	r.StaticFile("/preview-test.html", "./frontend/preview-test.html")
+	r.Static("/static", "./public")
+	r.StaticFile("/", "./public/index.html")
+	r.StaticFile("/index.html", "./public/index.html")
+	r.StaticFile("/pan.html", "./public/pan.html")
+	r.StaticFile("/login.html", "./public/login.html")
+	r.StaticFile("/register.html", "./public/register.html")
+	r.StaticFile("/swagger.html", "./public/swagger.html")
 
 	// 创建处理器
 	fileHandler := handlers.NewFileHandler(tosClient)

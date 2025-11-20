@@ -29,7 +29,7 @@ bkp-drive/
 │   ├── config/config.go         # 配置管理
 │   ├── database/mysql.go        # 数据库连接
 │   └── tos/                     # TOS客户端封装
-└── frontend/                    # Web前端
+└── public/                      # Web前端
 ```
 
 ## 核心功能模块
@@ -156,14 +156,15 @@ export JWT_SECRET="your-jwt-secret"
 
 ## 前端架构
 
-**位置**: `frontend/`
+**位置**: `public/`
 
-**技术栈**: 纯HTML/CSS/JavaScript + Electron支持
+**技术栈**: 纯HTML/CSS/JavaScript
 
 **主要页面**:
 - `index.html` - Apple风格首页
 - `pan.html` - 文件管理界面
 - `login.html/register.html` - 用户认证页面
+- `swagger.html` - API文档界面
 
 ## API接口总览
 
