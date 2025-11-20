@@ -12,12 +12,13 @@ type Config struct {
 	SecretKey   string
 	BucketName  string
 
-	// MySQL配置
-	MySQLUsername string
-	MySQLPassword string
-	MySQLHost     string
-	MySQLPort     string
-	MySQLDatabase string
+	// Supabase/PostgreSQL配置 (支持两种方式)
+	DatabaseURL string // 完整的连接URL (优先使用)
+	DBHost      string // 或者使用单独的参数
+	DBPort      string
+	DBUser      string
+	DBPassword  string
+	DBName      string
 
 	// JWT密钥
 	JWTSecret string
@@ -26,23 +27,19 @@ type Config struct {
 func LoadConfig() *Config {
 	return &Config{
 		// TOS配置
-
-		AccessKey: os.Getenv("TOS_ACCESS_KEY"),
-		SecretKey: os.Getenv("TOS_SECRET_KEY"),
-
-		// TOSEndpoint: getEnvOrDefault("TOS_ENDPOINT", "https://tos-cn-beijing.volces.com"),
-		// TOSRegion:   getEnvOrDefault("TOS_REGION", "cn-beijing"),
-		// BucketName:  getEnvOrDefault("TOS_BUCKET_NAME", "bkp-drive-bucket"),
+		AccessKey:   os.Getenv("TOS_ACCESS_KEY"),
+		SecretKey:   os.Getenv("TOS_SECRET_KEY"),
 		TOSEndpoint: os.Getenv("TOS_ENDPOINT"),
 		TOSRegion:   os.Getenv("TOS_REGION"),
 		BucketName:  os.Getenv("TOS_BUCKET_NAME"),
 
-		// mysql conf
-		MySQLUsername: os.Getenv("MYSQL_USERNAME"),
-		MySQLPassword: os.Getenv("MYSQL_PASSWORD"),
-		MySQLHost:     os.Getenv("MYSQL_HOST"),
-		MySQLPort:     os.Getenv("MYSQL_PORT"),
-		MySQLDatabase: os.Getenv("MYSQL_DATABASE"),
+		// Supabase/PostgreSQL配置
+		DatabaseURL: os.Getenv("DATABASE_URL"),          // 优先使用完整URL
+		DBHost:      os.Getenv("SUPABASE_DB_HOST"),      // 或者使用单独参数
+		DBPort:      getEnvOrDefault("SUPABASE_DB_PORT", "5432"),
+		DBUser:      getEnvOrDefault("SUPABASE_DB_USER", "postgres"),
+		DBPassword:  os.Getenv("SUPABASE_DB_PASSWORD"),
+		DBName:      getEnvOrDefault("SUPABASE_DB_NAME", "postgres"),
 
 		// JWT密钥
 		JWTSecret: os.Getenv("JWT_SECRET"),

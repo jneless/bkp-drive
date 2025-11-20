@@ -44,7 +44,7 @@ func (s *UserService) generateUserID() (string, error) {
 // checkUserIDExists 检查用户ID是否已存在
 func (s *UserService) checkUserIDExists(userID string) (bool, error) {
 	var count int
-	err := database.DB.QueryRow("SELECT COUNT(*) FROM users WHERE user_id = ?", userID).Scan(&count)
+	err := database.DB.QueryRow("SELECT COUNT(*) FROM users WHERE user_id = $1", userID).Scan(&count)
 	if err != nil {
 		return false, err
 	}
@@ -75,49 +75,45 @@ func (s *UserService) generateUniqueUserID() (string, error) {
 func (s *UserService) RegisterUser(req *models.UserRegisterRequest) (*models.User, error) {
 	// 检查用户名是否已存在
 	var count int
-	err := database.DB.QueryRow("SELECT COUNT(*) FROM users WHERE username = ?", req.Username).Scan(&count)
+	err := database.DB.QueryRow("SELECT COUNT(*) FROM users WHERE username = $1", req.Username).Scan(&count)
 	if err != nil {
 		return nil, fmt.Errorf("检查用户名失败: %w", err)
 	}
 	if count > 0 {
 		return nil, fmt.Errorf("用户名已存在")
 	}
-	
+
 	// 生成用户ID
 	userID, err := s.generateUniqueUserID()
 	if err != nil {
 		return nil, fmt.Errorf("生成用户ID失败: %w", err)
 	}
-	
+
 	// 密码加密
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, fmt.Errorf("密码加密失败: %w", err)
 	}
-	
-	// 插入数据库
-	result, err := database.DB.Exec(
-		"INSERT INTO users (user_id, username, password, created_at, updated_at) VALUES (?, ?, ?, NOW(), NOW())",
+
+	// 插入数据库并返回自增ID (PostgreSQL使用RETURNING)
+	var insertedID int
+	err = database.DB.QueryRow(
+		"INSERT INTO users (user_id, username, password, created_at, updated_at) VALUES ($1, $2, $3, NOW(), NOW()) RETURNING id",
 		userID, req.Username, string(hashedPassword),
-	)
+	).Scan(&insertedID)
 	if err != nil {
 		return nil, fmt.Errorf("创建用户失败: %w", err)
 	}
-	
-	id, err := result.LastInsertId()
-	if err != nil {
-		return nil, fmt.Errorf("获取用户ID失败: %w", err)
-	}
-	
+
 	// 返回用户信息
 	user := &models.User{
-		ID:        int(id),
+		ID:        insertedID,
 		UserID:    userID,
 		Username:  req.Username,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
-	
+
 	return user, nil
 }
 
@@ -125,30 +121,30 @@ func (s *UserService) RegisterUser(req *models.UserRegisterRequest) (*models.Use
 func (s *UserService) LoginUser(req *models.UserLoginRequest) (*models.User, string, error) {
 	var user models.User
 	var hashedPassword string
-	
+
 	err := database.DB.QueryRow(
-		"SELECT id, user_id, username, password, created_at, updated_at FROM users WHERE username = ?",
+		"SELECT id, user_id, username, password, created_at, updated_at FROM users WHERE username = $1",
 		req.Username,
 	).Scan(&user.ID, &user.UserID, &user.Username, &hashedPassword, &user.CreatedAt, &user.UpdatedAt)
-	
+
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, "", fmt.Errorf("用户名或密码错误")
 		}
 		return nil, "", fmt.Errorf("查询用户失败: %w", err)
 	}
-	
+
 	// 验证密码
 	if err := bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(req.Password)); err != nil {
 		return nil, "", fmt.Errorf("用户名或密码错误")
 	}
-	
+
 	// 生成JWT token
 	token, err := s.generateToken(&user)
 	if err != nil {
 		return nil, "", fmt.Errorf("生成令牌失败: %w", err)
 	}
-	
+
 	return &user, token, nil
 }
 

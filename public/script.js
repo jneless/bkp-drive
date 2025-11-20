@@ -1,6 +1,6 @@
 // API配置 - 适配Vercel部署
-const API_BASE_URL = window.location.hostname === 'localhost' 
-    ? 'http://localhost:3000/api' 
+const API_BASE_URL = window.location.hostname === 'localhost'
+    ? `http://${window.location.host}/api`  // 使用当前页面的端口
     : '/api';
 
 // 认证相关

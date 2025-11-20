@@ -17,7 +17,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
-	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/lib/pq"
 )
 
 type Claims struct {
@@ -139,7 +139,7 @@ func handleRegister(w http.ResponseWriter, r *http.Request) {
 
 	// 检查用户名是否已存在
 	var count int
-	err = db.QueryRow("SELECT COUNT(*) FROM users WHERE username = ?", req.Username).Scan(&count)
+	err = db.QueryRow("SELECT COUNT(*) FROM users WHERE username = $1", req.Username).Scan(&count)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]interface{}{
@@ -179,11 +179,12 @@ func handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 插入数据库
-	result, err := db.Exec(
-		"INSERT INTO users (user_id, username, password, created_at, updated_at) VALUES (?, ?, ?, NOW(), NOW())",
+	// 插入数据库并返回自增ID
+	var insertedID int
+	err = db.QueryRow(
+		"INSERT INTO users (user_id, username, password, created_at, updated_at) VALUES ($1, $2, $3, NOW(), NOW()) RETURNING id",
 		userID, req.Username, string(hashedPassword),
-	)
+	).Scan(&insertedID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]interface{}{
@@ -193,22 +194,12 @@ func handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id, err := result.LastInsertId()
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"success": false,
-			"error":   "获取用户ID失败: " + err.Error(),
-		})
-		return
-	}
-
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,
 		"message": "注册成功",
 		"user": map[string]interface{}{
-			"id":         int(id),
+			"id":         insertedID,
 			"user_id":    userID,
 			"username":   req.Username,
 			"created_at": time.Now(),
@@ -263,7 +254,7 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 	var hashedPassword string
 
 	err = db.QueryRow(
-		"SELECT id, user_id, username, password, created_at, updated_at FROM users WHERE username = ?",
+		"SELECT id, user_id, username, password, created_at, updated_at FROM users WHERE username = $1",
 		req.Username,
 	).Scan(&user.ID, &user.UserID, &user.Username, &hashedPassword, &user.CreatedAt, &user.UpdatedAt)
 
@@ -809,15 +800,29 @@ func handleBatchDelete(w http.ResponseWriter, r *http.Request) {
 
 // 辅助函数
 func getDBConnection() (*sql.DB, error) {
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
-		os.Getenv("MYSQL_USERNAME"),
-		os.Getenv("MYSQL_PASSWORD"),
-		os.Getenv("MYSQL_HOST"),
-		os.Getenv("MYSQL_PORT"),
-		os.Getenv("MYSQL_DATABASE"),
+	// 优先使用完整的DATABASE_URL
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL != "" {
+		db, err := sql.Open("postgres", databaseURL)
+		if err != nil {
+			return nil, err
+		}
+		if err = db.Ping(); err != nil {
+			return nil, err
+		}
+		return db, nil
+	}
+
+	// 否则使用单独的参数构建连接字符串
+	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=require",
+		getEnvOrDefault("SUPABASE_DB_HOST", ""),
+		getEnvOrDefault("SUPABASE_DB_PORT", "5432"),
+		getEnvOrDefault("SUPABASE_DB_USER", "postgres"),
+		os.Getenv("SUPABASE_DB_PASSWORD"),
+		getEnvOrDefault("SUPABASE_DB_NAME", "postgres"),
 	)
 
-	db, err := sql.Open("mysql", dsn)
+	db, err := sql.Open("postgres", dsn)
 	if err != nil {
 		return nil, err
 	}
@@ -853,7 +858,7 @@ func generateUniqueUserID(db *sql.DB) (string, error) {
 		}
 
 		var count int
-		err = db.QueryRow("SELECT COUNT(*) FROM users WHERE user_id = ?", userID).Scan(&count)
+		err = db.QueryRow("SELECT COUNT(*) FROM users WHERE user_id = $1", userID).Scan(&count)
 		if err != nil {
 			return "", err
 		}
