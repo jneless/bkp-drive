@@ -96,26 +96,6 @@ vercel --prod
 # - JWT_SECRET
 ```
 
-### 访问服务
-
-**本地Go服务器** (端口18666):
-- **首页**: http://localhost:18666/ (Apple风格首页)
-- **网盘功能**: http://localhost:18666/pan.html (文件管理界面)
-- **用户登录**: http://localhost:18666/login.html
-- **用户注册**: http://localhost:18666/register.html
-- **API文档**: http://localhost:18666/swagger/index.html
-- **健康检查**: http://localhost:18666/health
-
-**Vercel Dev服务器** (端口自动分配，通常3000-3002):
-- **首页**: http://localhost:3002/
-- **网盘功能**: http://localhost:3002/pan.html
-- **用户登录**: http://localhost:3002/login.html
-- **用户注册**: http://localhost:3002/register.html
-- **API端点**: http://localhost:3002/api/*
-
-**Vercel生产环境**:
-- 部署后访问: https://your-project.vercel.app
-
 ## 📖 API 文档
 
 ### Swagger 文档
@@ -168,14 +148,6 @@ vercel --prod
 - [Vercel部署文档](https://vercel.com/docs)
 - [Gin Web框架文档](https://gin-gonic.com/zh-cn/docs/)
 - [Swagger/OpenAPI文档](https://swagger.io/docs/)
-
-## 📚 项目文档
-
-- [ARCHITECTURE.md](./ARCHITECTURE.md) - 项目架构和API调用关系详解
-- [MIGRATION_TO_SUPABASE.md](./MIGRATION_TO_SUPABASE.md) - MySQL到Supabase迁移指南
-- [DATABASE_TEST_REPORT.md](./DATABASE_TEST_REPORT.md) - 数据库测试报告
-- [API.md](./API.md) - 基础API文档
-- [API_EXTENDED.md](./API_EXTENDED.md) - 扩展API文档
 
 ## license
 Apache-2.0
