@@ -19,9 +19,15 @@ let fileList, breadcrumb, selectionCount, deleteBtn, selectAllBtn, clearSelectio
 let refreshBtn, uploadBtn, uploadFolderBtn, fileInput, folderInput, newFolderBtn;
 let folderModal, notificationBanner, notificationClose, uploadProgressModal;
 let progressFill, progressText, progressPercentage, uploadDetails, cancelUploadBtn;
-let listViewBtn, gridViewBtn, imagePreviewModal, previewImage, imageTitle;
-let imagePath, imageLoading, imageError, closeImageModal, downloadImageBtn;
-let retryImageBtn, userInfo, usernameDisplay, logoutBtn;
+let listViewBtn, gridViewBtn, filePreviewModal, previewImage, previewVideo, previewPdf;
+let videoSnapshot, fileTitle, filePath, fileLoading, fileError, closeFileModal;
+let downloadFileBtn, retryFileBtn, userInfo, usernameDisplay, logoutBtn;
+let chatMessages, chatInput, sendMessageBtn, toggleAssistant, expandAssistantBtn;
+
+// 全局状态 - 聊天相关
+let currentFileId = null;
+let chatHistory = [];
+let isAssistantCollapsed = false;
 
 // 初始化DOM元素引用
 function initDOMElements() {
@@ -48,18 +54,26 @@ function initDOMElements() {
     cancelUploadBtn = document.getElementById('cancel-upload-btn');
     listViewBtn = document.getElementById('list-view-btn');
     gridViewBtn = document.getElementById('grid-view-btn');
-    imagePreviewModal = document.getElementById('image-preview-modal');
+    filePreviewModal = document.getElementById('file-preview-modal');
     previewImage = document.getElementById('preview-image');
-    imageTitle = document.getElementById('image-title');
-    imagePath = document.getElementById('image-path');
-    imageLoading = document.getElementById('image-loading');
-    imageError = document.getElementById('image-error');
-    closeImageModal = document.getElementById('close-image-modal');
-    downloadImageBtn = document.getElementById('download-image');
-    retryImageBtn = document.getElementById('retry-image');
+    previewVideo = document.getElementById('preview-video');
+    previewPdf = document.getElementById('preview-pdf');
+    videoSnapshot = document.getElementById('video-snapshot');
+    fileTitle = document.getElementById('file-title');
+    filePath = document.getElementById('file-path');
+    fileLoading = document.getElementById('file-loading');
+    fileError = document.getElementById('file-error');
+    closeFileModal = document.getElementById('close-file-modal');
+    downloadFileBtn = document.getElementById('download-file');
+    retryFileBtn = document.getElementById('retry-file');
     userInfo = document.getElementById('user-info');
     usernameDisplay = document.getElementById('username-display');
     logoutBtn = document.getElementById('logout-btn');
+    chatMessages = document.getElementById('chat-messages');
+    chatInput = document.getElementById('chat-input');
+    sendMessageBtn = document.getElementById('send-message');
+    toggleAssistant = document.getElementById('toggle-assistant');
+    expandAssistantBtn = document.getElementById('expand-assistant-btn');
 }
 
 // =============== 认证相关函数 ===============
@@ -270,7 +284,7 @@ function setupEventListeners() {
             }
         });
     }
-    
+
     // 视图模式切换
     if (listViewBtn) {
         listViewBtn.addEventListener('click', () => switchViewMode('list'));
@@ -278,23 +292,42 @@ function setupEventListeners() {
     if (gridViewBtn) {
         gridViewBtn.addEventListener('click', () => switchViewMode('grid'));
     }
-    
-    // 图片预览模态框
-    if (closeImageModal) {
-        closeImageModal.addEventListener('click', closeImagePreview);
+
+    // 文件预览模态框
+    if (closeFileModal) {
+        closeFileModal.addEventListener('click', closeFilePreview);
     }
-    if (imagePreviewModal) {
-        imagePreviewModal.addEventListener('click', (e) => {
-            if (e.target === imagePreviewModal) {
-                closeImagePreview();
+    if (filePreviewModal) {
+        filePreviewModal.addEventListener('click', (e) => {
+            if (e.target === filePreviewModal) {
+                closeFilePreview();
             }
         });
     }
-    if (downloadImageBtn) {
-        downloadImageBtn.addEventListener('click', downloadCurrentImage);
+    if (downloadFileBtn) {
+        downloadFileBtn.addEventListener('click', downloadCurrentFile);
     }
-    if (retryImageBtn) {
-        retryImageBtn.addEventListener('click', retryImageLoad);
+    if (retryFileBtn) {
+        retryFileBtn.addEventListener('click', retryFileLoad);
+    }
+
+    // 聊天功能
+    if (sendMessageBtn) {
+        sendMessageBtn.addEventListener('click', sendChatMessage);
+    }
+    if (chatInput) {
+        chatInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendChatMessage();
+            }
+        });
+    }
+    if (toggleAssistant) {
+        toggleAssistant.addEventListener('click', toggleAssistantSidebar);
+    }
+    if (expandAssistantBtn) {
+        expandAssistantBtn.addEventListener('click', toggleAssistantSidebar);
     }
 }
 
@@ -447,18 +480,21 @@ function setupFileItemListeners() {
                 const filename = item.dataset.path.split('/').pop();
                 const ext = filename.toLowerCase().split('.').pop();
                 const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'];
-                
+                const videoExts = ['mp4', 'avi', 'mov', 'wmv', 'flv', 'webm', 'mkv', '3gp', 'f4v', 'rmvb'];
+                const pdfExts = ['pdf'];
+
                 if (imageExts.includes(ext)) {
                     // 图片文件：打开预览
-                    openImagePreview(item.dataset.path, filename);
+                    openFilePreview(item.dataset.path, filename, 'image');
+                } else if (videoExts.includes(ext)) {
+                    // 视频文件：打开预览（显示首帧）
+                    openFilePreview(item.dataset.path, filename, 'video');
+                } else if (pdfExts.includes(ext)) {
+                    // PDF文件：打开预览
+                    openFilePreview(item.dataset.path, filename, 'pdf');
                 } else {
-                    // 其他文件（包括视频）：不执行任何操作（不提供预览和下载）
-                    const videoExts = ['mp4', 'avi', 'mov', 'wmv', 'flv', 'webm', 'mkv', '3gp', 'f4v', 'rmvb'];
-                    if (videoExts.includes(ext)) {
-                        console.log(`点击了视频文件: ${filename}，当前不支持预览功能`);
-                    } else {
-                        console.log(`点击了文件: ${filename}，当前不支持预览此类型文件`);
-                    }
+                    // 其他文件：不执行任何操作
+                    console.log(`点击了文件: ${filename}，当前不支持预览功能`);
                 }
             }
         });
@@ -1272,127 +1308,483 @@ function cancelUpload() {
     }
 }
 
-// 图片预览相关功能
-let currentImagePath = '';
-let currentImageBlobUrl = null; // 用于管理当前预览图片的blob URL
+// 文件预览相关功能
+let currentFilePath = '';
+let currentFileType = '';
+let currentBlobUrl = null; // 用于管理当前预览文件的blob URL
 
-function openImagePreview(imageFilePath, filename) {
-    currentImagePath = imageFilePath;
-    
-    if (imageTitle) {
-        imageTitle.textContent = filename;
+async function openFilePreview(filePathParam, filename, fileType) {
+    currentFilePath = filePathParam;
+    currentFileType = fileType;
+
+    // 重置聊天
+    resetChat();
+
+    if (fileTitle) {
+        fileTitle.textContent = filename;
     }
-    
+
     // 显示完整的网盘路径
-    if (imagePath) {
-        imagePath.textContent = `/${imageFilePath}`;
+    if (filePath) {
+        filePath.textContent = `/${filePathParam}`;
     }
-    
-    // 显示模态框和加载状态
-    if (imagePreviewModal) {
-        imagePreviewModal.style.display = 'block';
-    }
-    
-    showImageLoading();
-    loadPreviewImage(imageFilePath);
-}
 
-function showImageLoading() {
+    // 显示模态框
+    if (filePreviewModal) {
+        filePreviewModal.classList.add('active');
+    }
+
+    // 隐藏所有预览内容
     if (previewImage) previewImage.style.display = 'none';
-    if (imageError) imageError.style.display = 'none';
-    if (imageLoading) imageLoading.style.display = 'block';
-}
+    if (previewVideo) previewVideo.style.display = 'none';
+    if (previewPdf) previewPdf.style.display = 'none';
+    if (fileError) fileError.style.display = 'none';
 
-function showImageError() {
-    if (previewImage) previewImage.style.display = 'none';
-    if (imageLoading) imageLoading.style.display = 'none';
-    if (imageError) imageError.style.display = 'block';
-}
+    showFileLoading();
 
-function showImage() {
-    if (imageLoading) imageLoading.style.display = 'none';
-    if (imageError) imageError.style.display = 'none';
-    if (previewImage) previewImage.style.display = 'block';
-}
-
-function loadPreviewImage(imagePath) {
-    if (!previewImage) return;
-    
-    // 清理之前的blob URL
-    if (currentImageBlobUrl) {
-        URL.revokeObjectURL(currentImageBlobUrl);
-        currentImageBlobUrl = null;
-    }
-    
-    showImageLoading();
-    
-    // 使用认证方式加载原图
-    loadAuthenticatedOriginalImage(imagePath)
-        .then(blobUrl => {
-            if (blobUrl) {
-                currentImageBlobUrl = blobUrl; // 保存blob URL用于后续清理
-                previewImage.src = blobUrl;
-                showImage();
-            } else {
-                console.error('图片加载失败: blob URL为空');
-                showImageError();
-            }
-        })
-        .catch(error => {
-            console.error('图片加载失败:', error);
-            showImageError();
-        });
-}
-
-// 加载认证的原图（不使用缩略图处理）
-async function loadAuthenticatedOriginalImage(fileKey) {
     try {
-        const response = await fetch(`${API_BASE_URL}/download/${fileKey}`, {
+        if (fileType === 'image') {
+            await loadImagePreview(filePathParam);
+        } else if (fileType === 'video') {
+            await loadVideoPreview(filePathParam);
+        } else if (fileType === 'pdf') {
+            await loadPdfPreview(filePathParam);
+        }
+
+        // 文件加载成功后，自动发起第一条对话
+        await initializeChat(filePathParam, fileType);
+    } catch (error) {
+        console.error('文件加载失败:', error);
+        showFileError();
+    }
+}
+
+async function loadImagePreview(imagePath) {
+    if (!previewImage) return;
+
+    // 清理之前的blob URL
+    if (currentBlobUrl) {
+        URL.revokeObjectURL(currentBlobUrl);
+        currentBlobUrl = null;
+    }
+
+    const blobUrl = await loadAuthenticatedFile(imagePath);
+    if (blobUrl) {
+        currentBlobUrl = blobUrl;
+        previewImage.src = blobUrl;
+        previewImage.style.display = 'block';
+        hideFileLoading();
+    } else {
+        throw new Error('图片加载失败');
+    }
+}
+
+async function loadVideoPreview(videoPath) {
+    if (!videoSnapshot) return;
+
+    // 清理之前的blob URL
+    if (currentBlobUrl) {
+        URL.revokeObjectURL(currentBlobUrl);
+        currentBlobUrl = null;
+    }
+
+    // 使用 TOS 的 video/snapshot 功能获取首帧
+    const processParam = 'video/snapshot,t_0,f_jpg,w_0,h_0,m_fast';
+    const blobUrl = await loadAuthenticatedFile(videoPath, processParam);
+    if (blobUrl) {
+        currentBlobUrl = blobUrl;
+        videoSnapshot.src = blobUrl;
+        previewVideo.style.display = 'block';
+        hideFileLoading();
+
+        // 添加点击事件提示
+        videoSnapshot.onclick = () => {
+            showAlert('当前仅支持显示视频首帧', 'info');
+        };
+    } else {
+        throw new Error('视频首帧加载失败');
+    }
+}
+
+async function loadPdfPreview(pdfPath) {
+    // PDF 仅显示占位符，不需要实际加载
+    if (previewPdf) {
+        previewPdf.style.display = 'block';
+        hideFileLoading();
+    }
+}
+
+// 加载认证的文件（支持TOS处理参数）
+async function loadAuthenticatedFile(fileKey, processParam = '') {
+    try {
+        let url = `${API_BASE_URL}/download/${fileKey}`;
+        if (processParam) {
+            url += `?x-tos-process=${encodeURIComponent(processParam)}`;
+        }
+
+        const response = await fetch(url, {
             method: 'GET',
             headers: {
                 'Authorization': `Bearer ${authToken}`
             }
         });
-        
+
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
-        
+
         const blob = await response.blob();
         return URL.createObjectURL(blob);
     } catch (error) {
-        console.warn('加载认证原图失败:', error);
+        console.warn('加载文件失败:', error);
         return null;
     }
 }
 
-function closeImagePreview() {
-    if (imagePreviewModal) {
-        imagePreviewModal.style.display = 'none';
+function showFileLoading() {
+    if (fileLoading) fileLoading.style.display = 'block';
+}
+
+function hideFileLoading() {
+    if (fileLoading) fileLoading.style.display = 'none';
+}
+
+function showFileError() {
+    if (fileLoading) fileLoading.style.display = 'none';
+    if (fileError) fileError.style.display = 'block';
+}
+
+function closeFilePreview() {
+    if (filePreviewModal) {
+        filePreviewModal.classList.remove('active');
     }
-    
+
     // 清理blob URL以释放内存
-    if (currentImageBlobUrl) {
-        URL.revokeObjectURL(currentImageBlobUrl);
-        currentImageBlobUrl = null;
+    if (currentBlobUrl) {
+        URL.revokeObjectURL(currentBlobUrl);
+        currentBlobUrl = null;
     }
-    
-    currentImagePath = '';
+
+    // 清理状态
+    currentFilePath = '';
+    currentFileType = '';
+    currentFileId = null;
+    chatHistory = [];
+
     if (previewImage) {
         previewImage.src = '';
+        previewImage.style.display = 'none';
+    }
+    if (videoSnapshot) {
+        videoSnapshot.src = '';
+        videoSnapshot.onclick = null; // 移除点击事件
+    }
+    if (previewVideo) previewVideo.style.display = 'none';
+    if (previewPdf) previewPdf.style.display = 'none';
+
+    // 重置助手侧栏
+    const sidebar = document.querySelector('.bkp-assistant-sidebar');
+    if (sidebar) {
+        sidebar.classList.remove('collapsed');
+        isAssistantCollapsed = false;
+        if (toggleAssistant) toggleAssistant.textContent = '收起';
+        if (expandAssistantBtn) expandAssistantBtn.style.display = 'none';
     }
 }
 
-function downloadCurrentImage() {
-    if (!currentImagePath) return;
-    
-    // 使用修复后的下载函数
-    downloadFile(currentImagePath);
+function downloadCurrentFile() {
+    if (!currentFilePath) return;
+    downloadFile(currentFilePath);
 }
 
-function retryImageLoad() {
-    if (currentImagePath) {
-        showImageLoading();
-        loadPreviewImage(currentImagePath);
+function retryFileLoad() {
+    if (currentFilePath && currentFileType) {
+        showFileLoading();
+        if (currentFileType === 'image') {
+            loadImagePreview(currentFilePath).catch(() => showFileError());
+        } else if (currentFileType === 'video') {
+            loadVideoPreview(currentFilePath).catch(() => showFileError());
+        } else if (currentFileType === 'pdf') {
+            loadPdfPreview(currentFilePath).catch(() => showFileError());
+        }
     }
+}
+
+// =============== 聊天功能 ===============
+
+function resetChat() {
+    chatHistory = [];
+    currentFileId = null;
+    if (chatMessages) {
+        chatMessages.innerHTML = '<div class="assistant-welcome"><p>👋 你好！我可以帮你理解这个文件的内容。</p></div>';
+    }
+    if (chatInput) {
+        chatInput.value = '';
+    }
+}
+
+async function initializeChat(filePathParam, fileType) {
+    // 首先上传文件到ark平台
+    addLoadingMessage();
+
+    console.log('[ARK Upload] Starting upload for:', filePathParam, 'Type:', fileType);
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/ark/upload?file_path=${encodeURIComponent(filePathParam)}`, {
+            method: 'POST',
+            headers: getAuthHeaders()
+        });
+
+        console.log('[ARK Upload] Response status:', response.status);
+
+        const result = await response.json();
+        console.log('[ARK Upload] Response data:', result);
+
+        if (result.success) {
+            currentFileId = result.file_id;
+            console.log('[ARK Upload] File uploaded successfully, ID:', currentFileId);
+            removeLoadingMessage();
+
+            // 自动发送第一条消息
+            await sendAutoMessage('这个文件是什么内容');
+        } else {
+            console.error('[ARK Upload] Upload failed:', result.error);
+            removeLoadingMessage();
+            addAssistantMessage('文件上传失败: ' + result.error);
+        }
+    } catch (error) {
+        console.error('[ARK Upload] Upload error:', error);
+        removeLoadingMessage();
+        addAssistantMessage('文件上传失败: ' + error.message);
+    }
+}
+
+async function sendChatMessage() {
+    const message = chatInput.value.trim();
+    if (!message) return;
+
+    // 添加用户消息到界面
+    addUserMessage(message);
+    chatInput.value = '';
+
+    // 添加到历史记录
+    chatHistory.push(message);
+
+    // 发送到后端
+    await sendMessageToBackend();
+}
+
+async function sendAutoMessage(message) {
+    // 添加用户消息到界面
+    addUserMessage(message);
+
+    // 添加到历史记录
+    chatHistory.push(message);
+
+    // 发送到后端
+    await sendMessageToBackend();
+}
+
+async function sendMessageToBackend() {
+    if (sendMessageBtn) sendMessageBtn.disabled = true;
+    addLoadingMessage();
+
+    // 确保加载动画至少显示500ms
+    const minLoadingTime = 500;
+    const startTime = Date.now();
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/ark/chat`, {
+            method: 'POST',
+            headers: {
+                ...getAuthHeaders(),
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                file_id: currentFileId,
+                file_type: currentFileType,
+                messages: chatHistory
+            })
+        });
+
+        console.log('Chat response status:', response.status);
+        console.log('Chat response headers:', response.headers);
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Chat request failed:', errorText);
+            throw new Error(`请求失败: ${response.status} ${errorText}`);
+        }
+
+        // 处理SSE流式响应
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let assistantMessage = '';
+        let messageElement = null;
+        let hasReceivedData = false;
+
+        while (true) {
+            const {done, value} = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value, {stream: true});
+            const lines = chunk.split('\n');
+
+            console.log('Received chunk:', chunk); // 调试日志
+
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                if (line.startsWith('data: ')) {
+                    const data = line.slice(6);
+                    if (!data.trim()) continue;
+
+                    try {
+                        const parsed = JSON.parse(data);
+
+                        if (parsed.type === 'output' && parsed.delta) {
+                            // 收到第一个数据时移除加载动画
+                            if (!hasReceivedData) {
+                                const elapsedTime = Date.now() - startTime;
+                                if (elapsedTime < minLoadingTime) {
+                                    await new Promise(resolve => setTimeout(resolve, minLoadingTime - elapsedTime));
+                                }
+                                removeLoadingMessage();
+                                hasReceivedData = true;
+                            }
+
+                            assistantMessage += parsed.delta;
+
+                            // 更新或创建消息元素
+                            if (!messageElement) {
+                                messageElement = addAssistantMessage(assistantMessage);
+                            } else {
+                                updateAssistantMessage(messageElement, assistantMessage);
+                            }
+                        } else if (parsed.type === 'complete') {
+                            // 消息完成
+                            break;
+                        }
+                    } catch (e) {
+                        console.error('Parse error:', e, 'Data:', data);
+                        // 忽略解析错误
+                    }
+                } else if (line.startsWith('event: done')) {
+                    console.log('Stream done');
+                    break;
+                } else if (line.startsWith('event: error')) {
+                    // 提取错误信息 - 下一行应该是 data:
+                    let errorMsg = '服务器错误';
+                    if (i + 1 < lines.length && lines[i + 1].startsWith('data: ')) {
+                        errorMsg = lines[i + 1].slice(6);
+                    }
+                    console.error('SSE Error event:', errorMsg);
+                    throw new Error(errorMsg);
+                }
+            }
+        }
+
+        // 如果没有收到任何数据，也要移除加载动画
+        if (!hasReceivedData) {
+            const elapsedTime = Date.now() - startTime;
+            if (elapsedTime < minLoadingTime) {
+                await new Promise(resolve => setTimeout(resolve, minLoadingTime - elapsedTime));
+            }
+            removeLoadingMessage();
+        }
+    } catch (error) {
+        // 确保加载动画至少显示了最小时间
+        const elapsedTime = Date.now() - startTime;
+        if (elapsedTime < minLoadingTime) {
+            await new Promise(resolve => setTimeout(resolve, minLoadingTime - elapsedTime));
+        }
+        removeLoadingMessage();
+        addAssistantMessage('发送失败: ' + error.message);
+    } finally {
+        if (sendMessageBtn) sendMessageBtn.disabled = false;
+    }
+}
+
+function addUserMessage(message) {
+    if (!chatMessages) return;
+
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'chat-message message-user';
+    messageDiv.innerHTML = `<div class="message-bubble">${escapeHtml(message)}</div>`;
+    chatMessages.appendChild(messageDiv);
+    scrollToBottom();
+}
+
+function addAssistantMessage(message) {
+    if (!chatMessages) return null;
+
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'chat-message message-assistant';
+    messageDiv.innerHTML = `<div class="message-bubble">${escapeHtml(message)}</div>`;
+    chatMessages.appendChild(messageDiv);
+    scrollToBottom();
+    return messageDiv;
+}
+
+function updateAssistantMessage(messageElement, newText) {
+    if (!messageElement) return;
+    const bubble = messageElement.querySelector('.message-bubble');
+    if (bubble) {
+        bubble.innerHTML = escapeHtml(newText).replace(/\n/g, '<br>');
+    }
+    scrollToBottom();
+}
+
+function addLoadingMessage() {
+    if (!chatMessages) return;
+
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message-loading';
+    messageDiv.id = 'loading-message';
+    messageDiv.innerHTML = `
+        <div class="message-bubble">
+            <div class="typing-indicator">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        </div>
+    `;
+    chatMessages.appendChild(messageDiv);
+    scrollToBottom();
+}
+
+function removeLoadingMessage() {
+    const loading = document.getElementById('loading-message');
+    if (loading) {
+        loading.remove();
+    }
+}
+
+function scrollToBottom() {
+    if (chatMessages) {
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+}
+
+function toggleAssistantSidebar() {
+    const sidebar = document.querySelector('.bkp-assistant-sidebar');
+    if (!sidebar) return;
+
+    isAssistantCollapsed = !isAssistantCollapsed;
+
+    if (isAssistantCollapsed) {
+        sidebar.classList.add('collapsed');
+        if (toggleAssistant) toggleAssistant.textContent = '展开';
+        if (expandAssistantBtn) expandAssistantBtn.style.display = 'flex';
+    } else {
+        sidebar.classList.remove('collapsed');
+        if (toggleAssistant) toggleAssistant.textContent = '收起';
+        if (expandAssistantBtn) expandAssistantBtn.style.display = 'none';
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }

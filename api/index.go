@@ -18,6 +18,10 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
 	_ "github.com/lib/pq"
+	"github.com/volcengine/volcengine-go-sdk/service/arkruntime"
+	"github.com/volcengine/volcengine-go-sdk/service/arkruntime/model/file"
+	"github.com/volcengine/volcengine-go-sdk/service/arkruntime/model/responses"
+	"github.com/volcengine/volcengine-go-sdk/volcengine"
 )
 
 type Claims struct {
@@ -60,6 +64,10 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 		handleFolders(w, r)
 	case strings.HasPrefix(path, "/download/"):
 		handleDownload(w, r)
+	case path == "/ark/upload":
+		handleArkUpload(w, r)
+	case path == "/ark/chat":
+		handleArkChat(w, r)
 	default:
 		w.WriteHeader(http.StatusNotFound)
 		json.NewEncoder(w).Encode(map[string]interface{}{
@@ -1127,4 +1135,447 @@ func handleDownload(w http.ResponseWriter, r *http.Request) {
 			return // 无法再发送错误响应，因为已经开始写入响应体
 		}
 	}
+}
+
+// handleArkUpload 处理文件上传到 ark 平台
+func handleArkUpload(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Method not allowed",
+		})
+		return
+	}
+
+	// 验证JWT token
+	if !validateJWTToken(r) {
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "未授权访问",
+		})
+		return
+	}
+
+	// 获取文件路径参数
+	filePath := r.URL.Query().Get("file_path")
+	if filePath == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "文件路径不能为空",
+		})
+		return
+	}
+
+	fmt.Printf("[ARK Upload] Uploading file: %s\n", filePath)
+
+	// 从 TOS 下载文件
+	tosClient, err := getTOSClient()
+	if err != nil {
+		fmt.Printf("[ARK Upload] TOS client error: %v\n", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "TOS服务初始化失败: " + err.Error(),
+		})
+		return
+	}
+
+	bucketName := os.Getenv("TOS_BUCKET_NAME")
+	ctx := context.Background()
+
+	getObjectInput := &tos.GetObjectV2Input{
+		Bucket: bucketName,
+		Key:    filePath,
+	}
+
+	fmt.Printf("[ARK Upload] Downloading from TOS bucket: %s, key: %s\n", bucketName, filePath)
+
+	output, err := tosClient.GetObjectV2(ctx, getObjectInput)
+	if err != nil {
+		fmt.Printf("[ARK Upload] TOS download error: %v\n", err)
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "文件下载失败: " + err.Error(),
+		})
+		return
+	}
+	defer output.Content.Close()
+
+	fmt.Printf("[ARK Upload] File downloaded from TOS, size: %d bytes\n", output.ContentLength)
+
+	// 创建临时文件，保留原始文件扩展名
+	tmpFile, err := os.CreateTemp("", "ark-upload-*"+filepath.Ext(filePath))
+	if err != nil {
+		fmt.Printf("[ARK Upload] Failed to create temp file: %v\n", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "创建临时文件失败: " + err.Error(),
+		})
+		return
+	}
+	tmpFilePath := tmpFile.Name()
+	defer os.Remove(tmpFilePath) // 确保清理临时文件
+
+	// 将 TOS 内容写入临时文件
+	_, err = io.Copy(tmpFile, output.Content)
+	if err != nil {
+		tmpFile.Close()
+		fmt.Printf("[ARK Upload] Failed to write temp file: %v\n", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "写入临时文件失败: " + err.Error(),
+		})
+		return
+	}
+	tmpFile.Close()
+
+	// 重新打开临时文件用于上传
+	uploadFile, err := os.Open(tmpFilePath)
+	if err != nil {
+		fmt.Printf("[ARK Upload] Failed to open temp file: %v\n", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "打开临时文件失败: " + err.Error(),
+		})
+		return
+	}
+	defer uploadFile.Close()
+
+	fmt.Printf("[ARK Upload] Temp file created: %s\n", tmpFilePath)
+
+	// 上传到 ark 平台
+	arkApiKey := os.Getenv("ARK_API_KEY")
+	if arkApiKey == "" {
+		fmt.Printf("[ARK Upload] ARK_API_KEY not set\n")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "ARK_API_KEY环境变量未设置",
+		})
+		return
+	}
+
+	arkClient := arkruntime.NewClientWithApiKey(arkApiKey)
+
+	fmt.Printf("[ARK Upload] Uploading to ARK platform...\n")
+
+	fileInfo, err := arkClient.UploadFile(ctx, &file.UploadFileRequest{
+		File:    uploadFile,
+		Purpose: file.PurposeUserData,
+	})
+	if err != nil {
+		fmt.Printf("[ARK Upload] ARK upload error: %v\n", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "上传到ark失败: " + err.Error(),
+		})
+		return
+	}
+
+	fmt.Printf("[ARK Upload] File uploaded to ARK, ID: %s, Status: %s\n", fileInfo.ID, fileInfo.Status)
+
+	// 等待文件处理完成
+	maxRetries := 30 // 最多等待60秒
+	retryCount := 0
+	for fileInfo.Status == file.StatusProcessing {
+		if retryCount >= maxRetries {
+			fmt.Printf("[ARK Upload] Timeout waiting for file processing\n")
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"success": false,
+				"error":   "文件处理超时",
+			})
+			return
+		}
+
+		time.Sleep(2 * time.Second)
+		retryCount++
+		fileInfo, err = arkClient.RetrieveFile(ctx, fileInfo.ID)
+		if err != nil {
+			fmt.Printf("[ARK Upload] Error retrieving file status: %v\n", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"success": false,
+				"error":   "获取文件状态失败: " + err.Error(),
+			})
+			return
+		}
+		fmt.Printf("[ARK Upload] File status check %d: %s\n", retryCount, fileInfo.Status)
+	}
+
+	fmt.Printf("[ARK Upload] File processing completed, Status: %s\n", fileInfo.Status)
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"message": "文件上传成功",
+		"file_id": fileInfo.ID,
+		"status":  fileInfo.Status,
+	})
+}
+
+// handleArkChat 处理流式对话
+func handleArkChat(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Method not allowed",
+		})
+		return
+	}
+
+	// 验证JWT token
+	if !validateJWTToken(r) {
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "未授权访问",
+		})
+		return
+	}
+
+	// 解析请求
+	var req struct {
+		FileID   string   `json:"file_id"`
+		FileType string   `json:"file_type"`
+		Messages []string `json:"messages"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "请求参数错误: " + err.Error(),
+		})
+		return
+	}
+
+	fmt.Printf("[ARK Chat] Received request - FileID: %s, Messages: %d\n", req.FileID, len(req.Messages))
+
+	arkApiKey := os.Getenv("ARK_API_KEY")
+	if arkApiKey == "" {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "ARK_API_KEY环境变量未设置",
+		})
+		return
+	}
+
+	arkClient := arkruntime.NewClientWithApiKey(arkApiKey)
+	ctx := context.Background()
+
+	// 检查消息数组
+	if len(req.Messages) == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "消息不能为空",
+		})
+		return
+	}
+
+	// 构建消息
+	var inputMessages []*responses.InputItem
+
+	// 如果有文件ID，添加首个带文件的消息
+	if req.FileID != "" && len(req.Messages) > 0 {
+		// 根据文件类型创建对应的 ContentItem
+		var fileContentItem *responses.ContentItem
+
+		switch req.FileType {
+		case "image":
+			fileContentItem = &responses.ContentItem{
+				Union: &responses.ContentItem_Image{
+					Image: &responses.ContentItemImage{
+						Type:   responses.ContentItemType_input_image,
+						FileId: volcengine.String(req.FileID),
+					},
+				},
+			}
+		case "video":
+			fileContentItem = &responses.ContentItem{
+				Union: &responses.ContentItem_Video{
+					Video: &responses.ContentItemVideo{
+						Type:   responses.ContentItemType_input_video,
+						FileId: volcengine.String(req.FileID),
+					},
+				},
+			}
+		case "pdf":
+			fileContentItem = &responses.ContentItem{
+				Union: &responses.ContentItem_File{
+					File: &responses.ContentItemFile{
+						Type:   responses.ContentItemType_input_file,
+						FileId: volcengine.String(req.FileID),
+					},
+				},
+			}
+		default:
+			// 默认使用 File 类型
+			fileContentItem = &responses.ContentItem{
+				Union: &responses.ContentItem_File{
+					File: &responses.ContentItemFile{
+						Type:   responses.ContentItemType_input_file,
+						FileId: volcengine.String(req.FileID),
+					},
+				},
+			}
+		}
+
+		inputMessage := &responses.ItemInputMessage{
+			Role: responses.MessageRole_user,
+			Content: []*responses.ContentItem{
+				fileContentItem,
+				{
+					Union: &responses.ContentItem_Text{
+						Text: &responses.ContentItemText{
+							Type: responses.ContentItemType_input_text,
+							Text: req.Messages[0],
+						},
+					},
+				},
+			},
+		}
+		inputMessages = append(inputMessages, &responses.InputItem{
+			Union: &responses.InputItem_InputMessage{
+				InputMessage: inputMessage,
+			},
+		})
+
+		// 添加后续消息（不包含文件）
+		for i := 1; i < len(req.Messages); i++ {
+			inputMessage := &responses.ItemInputMessage{
+				Role: responses.MessageRole_user,
+				Content: []*responses.ContentItem{
+					{
+						Union: &responses.ContentItem_Text{
+							Text: &responses.ContentItemText{
+								Type: responses.ContentItemType_input_text,
+								Text: req.Messages[i],
+							},
+						},
+					},
+				},
+			}
+			inputMessages = append(inputMessages, &responses.InputItem{
+				Union: &responses.InputItem_InputMessage{
+					InputMessage: inputMessage,
+				},
+			})
+		}
+	} else {
+		// 仅文本消息
+		for _, msg := range req.Messages {
+			inputMessage := &responses.ItemInputMessage{
+				Role: responses.MessageRole_user,
+				Content: []*responses.ContentItem{
+					{
+						Union: &responses.ContentItem_Text{
+							Text: &responses.ContentItemText{
+								Type: responses.ContentItemType_input_text,
+								Text: msg,
+							},
+						},
+					},
+				},
+			}
+			inputMessages = append(inputMessages, &responses.InputItem{
+				Union: &responses.InputItem_InputMessage{
+					InputMessage: inputMessage,
+				},
+			})
+		}
+	}
+
+	createResponsesReq := &responses.ResponsesRequest{
+		Model: "doubao-seed-1-6-251015",
+		Input: &responses.ResponsesInput{
+			Union: &responses.ResponsesInput_ListValue{
+				ListValue: &responses.InputItemList{ListValue: inputMessages},
+			},
+		},
+		Thinking: &responses.ResponsesThinking{Type: responses.ThinkingType_enabled.Enum()},
+	}
+
+	fmt.Printf("[ARK Chat] Creating stream request...\n")
+
+	// 设置SSE响应头
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	// 重新设置 CORS 头（确保不被覆盖）
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	resp, err := arkClient.CreateResponsesStream(ctx, createResponsesReq)
+	if err != nil {
+		fmt.Printf("[ARK Chat] Stream creation error: %v\n", err)
+		// 发送错误事件
+		fmt.Fprintf(w, "event: error\ndata: %s\n\n", err.Error())
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+		return
+	}
+
+	fmt.Printf("[ARK Chat] Stream created successfully\n")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		fmt.Fprintf(w, "event: error\ndata: Streaming not supported\n\n")
+		return
+	}
+
+	for {
+		event, err := resp.Recv()
+		if err == io.EOF {
+			fmt.Printf("[ARK Chat] Stream ended (EOF)\n")
+			fmt.Fprintf(w, "event: done\ndata: \n\n")
+			flusher.Flush()
+			break
+		}
+		if err != nil {
+			fmt.Printf("[ARK Chat] Stream error: %v\n", err)
+			fmt.Fprintf(w, "event: error\ndata: %s\n\n", err.Error())
+			flusher.Flush()
+			break
+		}
+
+		eventType := event.GetEventType()
+		// fmt.Printf("[ARK Chat] Received event: %s\n", eventType) // 可选：详细日志
+
+		// 处理不同类型的事件
+		switch eventType {
+		case responses.EventType_response_reasoning_summary_text_delta.String():
+			// 推理文本增量
+			delta := event.GetReasoningText().GetDelta()
+			data, _ := json.Marshal(map[string]string{"type": "reasoning", "delta": delta})
+			fmt.Fprintf(w, "data: %s\n\n", data)
+			flusher.Flush()
+
+		case responses.EventType_response_output_text_delta.String():
+			// 输出文本增量
+			delta := event.GetText().GetDelta()
+			data, _ := json.Marshal(map[string]string{"type": "output", "delta": delta})
+			fmt.Fprintf(w, "data: %s\n\n", data)
+			flusher.Flush()
+
+		case responses.EventType_response_output_text_done.String():
+			// 输出完成
+			text := event.GetTextDone().GetText()
+			data, _ := json.Marshal(map[string]string{"type": "complete", "text": text})
+			fmt.Fprintf(w, "data: %s\n\n", data)
+			flusher.Flush()
+		}
+	}
+
+	fmt.Printf("[ARK Chat] Request completed\n")
 }

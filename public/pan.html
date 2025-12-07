@@ -100,27 +100,69 @@
         </div>
     </div>
 
-    <!-- 图片预览模态框 -->
-    <div id="image-preview-modal" class="modal image-modal">
-        <div class="image-modal-content">
-            <div class="image-modal-header">
-                <div class="image-header-left">
-                    <h3 id="image-title">图片预览</h3>
-                    <div class="image-path" id="image-path">/</div>
+    <!-- 文件预览模态框 -->
+    <div id="file-preview-modal" class="modal file-modal">
+        <div class="file-modal-container">
+            <!-- 左侧预览区域 -->
+            <div class="file-preview-main">
+                <div class="file-modal-header">
+                    <div class="file-header-left">
+                        <h3 id="file-title">文件预览</h3>
+                        <div class="file-path" id="file-path">/</div>
+                    </div>
+                    <button id="close-file-modal" class="close-btn">×</button>
                 </div>
-                <button id="close-image-modal" class="close-btn">×</button>
-            </div>
-            <div class="image-container">
-                <img id="preview-image" src="" alt="图片预览" />
-                <div class="image-loading" id="image-loading">加载中...</div>
-                <div class="image-error" id="image-error" style="display: none;">
-                    <p>图片加载失败</p>
-                    <button id="retry-image" class="btn btn-primary">重试</button>
+                <div class="file-container">
+                    <!-- 图片预览 -->
+                    <img id="preview-image" src="" alt="图片预览" style="display: none;" />
+                    <!-- 视频预览 -->
+                    <div id="preview-video" style="display: none;">
+                        <img id="video-snapshot" src="" alt="视频首帧" style="cursor: pointer;" />
+                    </div>
+                    <!-- PDF预览 -->
+                    <div id="preview-pdf" style="display: none;">
+                        <div class="pdf-placeholder">
+                            <div class="pdf-icon">📄</div>
+                            <p class="pdf-title">PDF 文档</p>
+                            <p class="pdf-hint">暂不支持在线预览</p>
+                            <p class="pdf-suggestion">请下载后查看，或使用右侧"不靠谱助手"了解文档内容</p>
+                        </div>
+                    </div>
+                    <div class="file-loading" id="file-loading">加载中...</div>
+                    <div class="file-error" id="file-error" style="display: none;">
+                        <p>文件加载失败</p>
+                        <button id="retry-file" class="btn btn-primary">重试</button>
+                    </div>
+                </div>
+                <div class="file-modal-footer">
+                    <button id="download-file" class="btn btn-primary">下载文件</button>
                 </div>
             </div>
-            <div class="image-modal-footer">
-                <button id="download-image" class="btn btn-primary">下载图片</button>
+
+            <!-- 右侧不靠谱助手 -->
+            <div class="bkp-assistant-sidebar">
+                <div class="assistant-header">
+                    <h3>🤖 不靠谱助手</h3>
+                    <button id="toggle-assistant" class="btn btn-small">收起</button>
+                </div>
+                <div class="assistant-content">
+                    <div class="chat-messages" id="chat-messages">
+                        <div class="assistant-welcome">
+                            <p>👋 你好！我可以帮你理解这个文件的内容。</p>
+                        </div>
+                    </div>
+                    <div class="chat-input-area">
+                        <textarea id="chat-input" placeholder="输入消息..." rows="3"></textarea>
+                        <button id="send-message" class="btn btn-primary">发送</button>
+                    </div>
+                </div>
             </div>
+
+            <!-- 展开助手按钮 -->
+            <button id="expand-assistant-btn" class="expand-assistant-btn" style="display: none;">
+                <span>🤖</span>
+                <span class="expand-text">展开助手</span>
+            </button>
         </div>
     </div>
 
