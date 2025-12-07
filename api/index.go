@@ -1528,24 +1528,25 @@ func handleArkChat(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Printf("[ARK Chat] Stream created successfully\n")
 
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		fmt.Fprintf(w, "event: error\ndata: Streaming not supported\n\n")
-		return
-	}
+	// 尝试获取 Flusher,但不强制要求(Vercel 环境可能有不同实现)
+	flusher, _ := w.(http.Flusher)
 
 	for {
 		event, err := resp.Recv()
 		if err == io.EOF {
 			fmt.Printf("[ARK Chat] Stream ended (EOF)\n")
 			fmt.Fprintf(w, "event: done\ndata: \n\n")
-			flusher.Flush()
+			if flusher != nil {
+				flusher.Flush()
+			}
 			break
 		}
 		if err != nil {
 			fmt.Printf("[ARK Chat] Stream error: %v\n", err)
 			fmt.Fprintf(w, "event: error\ndata: %s\n\n", err.Error())
-			flusher.Flush()
+			if flusher != nil {
+				flusher.Flush()
+			}
 			break
 		}
 
@@ -1559,21 +1560,27 @@ func handleArkChat(w http.ResponseWriter, r *http.Request) {
 			delta := event.GetReasoningText().GetDelta()
 			data, _ := json.Marshal(map[string]string{"type": "reasoning", "delta": delta})
 			fmt.Fprintf(w, "data: %s\n\n", data)
-			flusher.Flush()
+			if flusher != nil {
+				flusher.Flush()
+			}
 
 		case responses.EventType_response_output_text_delta.String():
 			// 输出文本增量
 			delta := event.GetText().GetDelta()
 			data, _ := json.Marshal(map[string]string{"type": "output", "delta": delta})
 			fmt.Fprintf(w, "data: %s\n\n", data)
-			flusher.Flush()
+			if flusher != nil {
+				flusher.Flush()
+			}
 
 		case responses.EventType_response_output_text_done.String():
 			// 输出完成
 			text := event.GetTextDone().GetText()
 			data, _ := json.Marshal(map[string]string{"type": "complete", "text": text})
 			fmt.Fprintf(w, "data: %s\n\n", data)
-			flusher.Flush()
+			if flusher != nil {
+				flusher.Flush()
+			}
 		}
 	}
 
